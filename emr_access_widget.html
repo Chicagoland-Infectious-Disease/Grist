@@ -177,20 +177,18 @@ body { font-family: 'DM Sans', sans-serif; background: #f1f0ed; min-height: 100v
   // ── Load all employee contacts from main doc via REST API ─────
   async function loadNPData() {
     try {
-      const response = await fetch(
-        'https://idsolns.getgrist.com/api/docs/aDxJysFXqQ2KSGKnPGhXaU/tables/Employee/records',
-        { headers: { 'Authorization': 'Bearer b6a0d607a4b350b086e8776f6368e29f24907229' } }
-      );
-      const data = await response.json();
+      const emp = await grist.docApi.fetchTable('Employee');
       npData = [];
-      for (const record of data.records) {
-        const f = record.fields;
-        npData.push({
-          name:          f.Employee_Name   || '—',
-          email:         f.Email           || '—',
-          phone:         f.Phone_Number    || '—',
-          modeOfContact: f.Mode_of_Contact || '—',
-        });
+      for (let i = 0; i < emp.id.length; i++) {
+        const jobTitle = emp.Job_Title?.[i] || '';
+        if (jobTitle === 'Nurse Practitioner') {
+          npData.push({
+            name:          emp.Employee_Name?.[i]    || '—',
+            email:         emp.Email?.[i]            || '—',
+            phone:         emp.Phone_Number?.[i]     || '—',
+            modeOfContact: emp.Mode_of_Contact?.[i]  || '—',
+          });
+        }
       }
     } catch(e) {
       console.warn('Could not load NP data:', e);
