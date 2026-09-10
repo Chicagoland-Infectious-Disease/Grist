@@ -49,149 +49,130 @@
   .related-item:last-child { border-bottom:none; }
   .related-facility { color:#1a1a1a;font-weight:500; }
   .related-current { font-size:10px;background:#2d6a4f;color:#fff;padding:2px 7px;border-radius:4px; }
-  #accessDenied { display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;gap:12px; }
-  #accessDenied .lock-icon { font-size:48px; }
-  #accessDenied h2 { font-size:16px;font-weight:600;color:#8b1a1a; }
-  #accessDenied p { font-size:13px;color:#888;max-width:280px;line-height:1.6; }
 </style>
 </head>
 <body>
 
-<!-- Access denied screen -->
-<div id="accessDenied">
-  <div class="lock-icon">🔒</div>
-  <h2>Access Restricted</h2>
-  <p>You don't have permission to use this widget. Please contact your administrator if you believe this is an error.</p>
+<div class="header">&#9729;&#65039; Azure QR Path Generator</div>
+<p class="subtitle">Fetches EMR Access data directly &#8212; resolves practitioner &amp; facility names automatically</p>
+
+<div id="statusBar" class="status-bar waiting">
+  <div class="dot yellow"></div>
+  <span id="statusText">Loading data from Grist&#8230;</span>
 </div>
 
-<!-- Main widget — hidden until access check passes -->
-<div id="mainContent" style="display:none;">
-  <div class="header">&#9729;&#65039; Azure QR Path Generator</div>
-  <p class="subtitle">Fetches EMR Access data directly &#8212; resolves practitioner &amp; facility names automatically</p>
+<span class="config-toggle" onclick="toggleConfig()">&#9881; Storage &amp; table settings</span>
 
-  <div id="statusBar" class="status-bar waiting">
-    <div class="dot yellow"></div>
-    <span id="statusText">Loading data from Grist&#8230;</span>
-  </div>
-
-  <span class="config-toggle" onclick="toggleConfig()">&#9881; Storage &amp; table settings</span>
-
-  <div class="config-section" id="configSection">
-    <div class="card">
-      <div class="card-label">Azure storage</div>
-      <div class="row">
-        <div class="col">
-          <label>Storage account name</label>
-          <input type="text" id="accountName" value="idsqrcodes" oninput="generate()" />
-        </div>
-        <div class="col">
-          <label>Container name</label>
-          <input type="text" id="containerName" value="qrcodes" oninput="generate()" />
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-label">Grist table &amp; column IDs</div>
-      <div class="row">
-        <div class="col">
-          <label>EMR Access table ID</label>
-          <input type="text" id="tblEMR" value="EMR_Access" oninput="loadData()" />
-        </div>
-        <div class="col">
-          <label>Practitioner col ID</label>
-          <input type="text" id="colPractitioner" value="Practitioner_Name" oninput="loadData()" />
-        </div>
-        <div class="col">
-          <label>Facility col ID</label>
-          <input type="text" id="colFacility" value="Facility_Name" oninput="loadData()" />
-        </div>
-        <div class="col">
-          <label>Username col ID</label>
-          <input type="text" id="colUsername" value="Username" oninput="loadData()" />
-        </div>
-      </div>
-      <p class="hint">Practitioner_Name and Facility_Name are plain text in this doc.</p>
-    </div>
-  </div>
-
+<div class="config-section" id="configSection">
   <div class="card">
-    <div class="card-label">Select practitioner &amp; facility <span id="recordCount" class="badge" style="display:none;"></span></div>
+    <div class="card-label">Azure storage</div>
     <div class="row">
       <div class="col">
-        <label>Practitioner</label>
-        <select id="practitionerSelect" onchange="onPractitionerChange()" disabled>
-          <option value="">&#8212; loading&#8230; &#8212;</option>
-        </select>
+        <label>Storage account name</label>
+        <input type="text" id="accountName" value="idsqrcodes" oninput="generate()" />
       </div>
       <div class="col">
-        <label>Facility</label>
-        <select id="facilitySelect" onchange="generate()" disabled>
-          <option value="">&#8212; select practitioner first &#8212;</option>
-        </select>
+        <label>Container name</label>
+        <input type="text" id="containerName" value="qrcodes" oninput="generate()" />
       </div>
     </div>
   </div>
-
-  <div class="username-display" id="usernameDisplay">
-    <div class="card-label">Username for this facility</div>
-    <div class="username-value" id="usernameValue"></div>
-    <div class="username-sub">Filename will be based on this username &#8212; all QR codes for this username share the same file</div>
-  </div>
-
-  <div class="related-card" id="relatedCard">
-    <div class="related-label">
-      &#9888; Other facilities sharing this username
-      <span id="relatedCount" class="badge" style="background:#fff3dc;color:#8a5c00;"></span>
-    </div>
-    <div class="related-warning" id="relatedWarning"></div>
-    <div id="relatedList"></div>
-  </div>
-
-  <div id="outputSection" style="display:none;">
-    <div class="output-card">
-      <div class="output-label">
-        Filename &#8212; rename your QR image to this
-        <button class="copy-btn" id="btn-file" onclick="copyField('filename','btn-file')">Copy</button>
+  <div class="card">
+    <div class="card-label">Grist table &amp; column IDs</div>
+    <div class="row">
+      <div class="col">
+        <label>EMR Access table ID</label>
+        <input type="text" id="tblEMR" value="EMR_Access" oninput="loadData()" />
       </div>
-      <div class="output-value" id="filename"></div>
-    </div>
-    <div class="output-card">
-      <div class="output-label">
-        Full URL &#8212; paste into Grist QR column for ALL facilities listed above
-        <button class="copy-btn" id="btn-url" onclick="copyField('fullUrl','btn-url')">Copy</button>
+      <div class="col">
+        <label>Practitioner col ID</label>
+        <input type="text" id="colPractitioner" value="Practitioner_Name" oninput="loadData()" />
       </div>
-      <div class="output-value url" id="fullUrl"></div>
+      <div class="col">
+        <label>Facility col ID</label>
+        <input type="text" id="colFacility" value="Facility_Name" oninput="loadData()" />
+      </div>
+      <div class="col">
+        <label>Username col ID</label>
+        <input type="text" id="colUsername" value="Username" oninput="loadData()" />
+      </div>
+    </div>
+    <p class="hint">If Practitioner_Name or Facility_Name are <strong>Reference columns</strong>, fill in the table and display column they point to below. Leave blank if they are plain text.</p>
+    <div class="row" style="margin-top:10px;">
+      <div class="col">
+        <label>Practitioner ref table (if reference)</label>
+        <input type="text" id="tblPractRef" value="Employee" oninput="loadData()" placeholder="e.g. Employee" />
+      </div>
+      <div class="col">
+        <label>Practitioner display col</label>
+        <input type="text" id="colPractDisplay" value="Employee_Name" oninput="loadData()" placeholder="e.g. Employee_Name" />
+      </div>
+      <div class="col">
+        <label>Facility ref table (if reference)</label>
+        <input type="text" id="tblFacRef" value="Facility" oninput="loadData()" placeholder="e.g. Facility" />
+      </div>
+      <div class="col">
+        <label>Facility display col</label>
+        <input type="text" id="colFacDisplay" value="Facility_Name" oninput="loadData()" placeholder="e.g. Facility_Name" />
+      </div>
     </div>
   </div>
-
-  <div class="empty" id="emptyState">Select a practitioner to get started</div>
 </div>
+
+<div class="card">
+  <div class="card-label">Select practitioner &amp; facility <span id="recordCount" class="badge" style="display:none;"></span></div>
+  <div class="row">
+    <div class="col">
+      <label>Practitioner</label>
+      <select id="practitionerSelect" onchange="onPractitionerChange()" disabled>
+        <option value="">&#8212; loading&#8230; &#8212;</option>
+      </select>
+    </div>
+    <div class="col">
+      <label>Facility</label>
+      <select id="facilitySelect" onchange="generate()" disabled>
+        <option value="">&#8212; select practitioner first &#8212;</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="username-display" id="usernameDisplay">
+  <div class="card-label">Username for this facility</div>
+  <div class="username-value" id="usernameValue"></div>
+  <div class="username-sub">Filename will be based on this username &#8212; all QR codes for this username share the same file</div>
+</div>
+
+<div class="related-card" id="relatedCard">
+  <div class="related-label">
+    &#9888; Other facilities sharing this username
+    <span id="relatedCount" class="badge" style="background:#fff3dc;color:#8a5c00;"></span>
+  </div>
+  <div class="related-warning" id="relatedWarning"></div>
+  <div id="relatedList"></div>
+</div>
+
+<div id="outputSection" style="display:none;">
+  <div class="output-card">
+    <div class="output-label">
+      Filename &#8212; rename your QR image to this
+      <button class="copy-btn" id="btn-file" onclick="copyField('filename','btn-file')">Copy</button>
+    </div>
+    <div class="output-value" id="filename"></div>
+  </div>
+  <div class="output-card">
+    <div class="output-label">
+      Full URL &#8212; paste into Grist QR column for ALL facilities listed above
+      <button class="copy-btn" id="btn-url" onclick="copyField('fullUrl','btn-url')">Copy</button>
+    </div>
+    <div class="output-value url" id="fullUrl"></div>
+  </div>
+</div>
+
+<div class="empty" id="emptyState">Select a practitioner to get started</div>
 
 <script>
   var records = [];
-
-  function showDenied() {
-    document.getElementById('accessDenied').style.display = 'flex';
-    document.getElementById('mainContent').style.display  = 'none';
-  }
-
-  function showMain() {
-    document.getElementById('mainContent').style.display  = 'block';
-    document.getElementById('accessDenied').style.display = 'none';
-  }
-
-  // Access check — only owners can read Widget_Auth
-  // Set access rule on Widget_Auth: user.Access != "owners" → deny read
-  async function checkAccess() {
-    try {
-      await grist.docApi.fetchTable('Widget_Auth');
-      showMain();
-      return true;
-    } catch(e) {
-      showDenied();
-      return false;
-    }
-  }
 
   function slugify(str) {
     return (str || '').trim().replace(/[^a-zA-Z0-9.\-_]/g,'').replace(/\s+/g,'-');
@@ -208,20 +189,59 @@
     document.getElementById('configSection').classList.toggle('open');
   }
 
+  async function buildLookup(tableName, displayCol) {
+    // Returns a map of { rowId -> displayValue } for a reference table.
+    // Returns null if the table name is blank or the fetch fails.
+    if (!tableName) return null;
+    try {
+      var tbl = await grist.docApi.fetchTable(tableName);
+      var map = {};
+      for (var i = 0; i < tbl.id.length; i++) {
+        map[tbl.id[i]] = tbl[displayCol] ? (tbl[displayCol][i] || '') : '';
+      }
+      return map;
+    } catch(e) {
+      return null; // table doesn't exist or not accessible — fall back to raw value
+    }
+  }
+
+  function resolveValue(raw, lookup) {
+    // If raw is a number (reference row ID) and we have a lookup map, resolve it.
+    // Otherwise return the raw value as a string.
+    if (typeof raw === 'number' && lookup && lookup[raw] !== undefined) {
+      return lookup[raw];
+    }
+    return raw ? String(raw) : '';
+  }
+
   async function loadData() {
     setStatus('waiting', 'Loading data\u2026');
     try {
-      var tblEMR   = document.getElementById('tblEMR').value.trim();
-      var colPract = document.getElementById('colPractitioner').value.trim();
-      var colFac   = document.getElementById('colFacility').value.trim();
-      var colUser  = document.getElementById('colUsername').value.trim();
+      var tblEMR        = document.getElementById('tblEMR').value.trim();
+      var colPract      = document.getElementById('colPractitioner').value.trim();
+      var colFac        = document.getElementById('colFacility').value.trim();
+      var colUser       = document.getElementById('colUsername').value.trim();
+      var tblPractRef   = document.getElementById('tblPractRef').value.trim();
+      var colPractDisp  = document.getElementById('colPractDisplay').value.trim() || 'Employee_Name';
+      var tblFacRef     = document.getElementById('tblFacRef').value.trim();
+      var colFacDisp    = document.getElementById('colFacDisplay').value.trim() || 'Facility_Name';
 
-      var emr = await grist.docApi.fetchTable(tblEMR);
+      // Fetch EMR table and both reference lookup tables in parallel
+      var results = await Promise.all([
+        grist.docApi.fetchTable(tblEMR),
+        buildLookup(tblPractRef, colPractDisp),
+        buildLookup(tblFacRef, colFacDisp)
+      ]);
+      var emr         = results[0];
+      var practLookup = results[1];
+      var facLookup   = results[2];
 
       records = [];
       for (var i = 0; i < emr.id.length; i++) {
-        var practName = emr[colPract] ? (emr[colPract][i] || '') : '';
-        var facName   = emr[colFac]   ? (emr[colFac][i]   || '') : '';
+        var rawPract  = emr[colPract] ? emr[colPract][i] : '';
+        var rawFac    = emr[colFac]   ? emr[colFac][i]   : '';
+        var practName = resolveValue(rawPract, practLookup);
+        var facName   = resolveValue(rawFac,   facLookup);
         var username  = emr[colUser]  ? (emr[colUser][i]  || '') : '';
         if (!practName || !facName) continue;
         records.push({ practitioner: practName, facility: facName, username: username });
@@ -362,8 +382,8 @@
   }
 
   grist.ready({ requiredAccess: 'full' });
-  grist.onRecords(function() { checkAccess().then(function(ok){ if (ok) loadData(); }); });
-  checkAccess().then(function(ok){ if (ok) loadData(); });
+  grist.onRecords(function() { loadData(); });
+  loadData();
 </script>
 </body>
 </html>
