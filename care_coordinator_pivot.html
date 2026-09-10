@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Care Coordinator Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #f1f0ed;
+  min-height: 100vh;
+  padding: 16px;
+}
+.btn-section { margin-bottom: 16px; }
+.btn-label {
+  font-size: 13px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.07em; color: #aaa;
+  font-family: 'DM Mono', monospace; margin-bottom: 8px;
+}
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.cc-btn {
+  padding: 6px 14px; border-radius: 8px;
+  border: 1.5px solid #e0deda; background: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  font-weight: 500; color: #444; cursor: pointer;
+  transition: all 0.15s;
+}
+.cc-btn:hover { border-color: #2d6a4f; color: #2d6a4f; background: #f0f7f4; }
+.cc-btn.active { background: #1a1916; color: #fff; border-color: #1a1916; }
+.cc-btn.active:hover { background: #2d6a4f; border-color: #2d6a4f; }
+.table-wrap {
+  overflow-x: auto; border-radius: 10px;
+  border: 1px solid #e0deda; background: #fff;
+  display: inline-block; min-width: 100%;
+}
+table { border-collapse: collapse; font-size: 13px; width: auto; }
+thead th {
+  background: #1a1916; color: #fff; padding: 8px 10px;
+  font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500;
+  white-space: nowrap; text-align: center; letter-spacing: 0.04em;
+  position: sticky; top: 0; z-index: 2;
+}
+thead th:first-child {
+  text-align: center; background: #111;
+  position: sticky; left: 0; z-index: 3;
+}
+tbody tr { border-bottom: 1px solid #f0eeea; }
+tbody tr:last-child { border-bottom: none; }
+tbody td {
+  padding: 7px 10px; text-align: center;
+  vertical-align: middle; color: #444;
+  font-family: 'DM Mono', monospace; font-size: 13px;
+  white-space: nowrap;
+}
+tbody td:first-child {
+  text-align: center; font-weight: 500; color: #111;
+  white-space: nowrap; background: #fafaf8;
+  position: sticky; left: 0;
+  border-right: 1px solid #e0deda; font-size: 13px;
+  padding-right: 10px;
+}
+
+/* Total row styling */
+tbody tr.total-row {
+  border-top: 2px solid #1a1916;
+}
+tbody tr.total-row td {
+  background: #1a1916;
+  color: #fff;
+  font-weight: 600;
+}
+tbody tr.total-row td:first-child {
+  background: #111;
+  color: #fff;
+  border-right: 1px solid #333;
+}
+tbody tr.total-row .cell-val {
+  color: #fff;
+}
+tbody tr.total-row .cell-val.zero {
+  color: #555;
+}
+
+.cell-val {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 20px; border-radius: 4px;
+  font-size: 13px; font-weight: 500; padding: 0 6px;
+}
+.cell-val.zero { color: #ccc; }
+.cell-val.high { background: transparent; color: #111; }
+.cell-wrap {
+  position: relative; display: inline-block;
+  margin: 6px 8px;
+}
+.cell-complete {
+  position: absolute; top: -10px; right: -8px;
+  font-size: 10px; font-weight: 600; color: #2d6a4f;
+  background: #e8f5e9; border-radius: 3px;
+  padding: 0 3px; line-height: 14px;
+  font-family: 'DM Mono', monospace;
+}
+.cell-skipped {
+  position: absolute; top: -10px; left: -8px;
+  font-size: 10px; font-weight: 600; color: #c0392b;
+  background: #fde8e8; border-radius: 3px;
+  padding: 0 3px; line-height: 14px;
+  font-family: 'DM Mono', monospace;
+}
+.loading {
+  padding: 32px; text-align: center; color: #aaa;
+  font-family: 'DM Mono', monospace; font-size: 13px;
+}
+.table-note {
+  margin-top: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: #aaa;
+  letter-spacing: 0.03em;
+}
+</style>
+</head>
+<body>
+
+<div class="btn-section">
+  <div class="btn-label">Filter by Care Coordinator</div>
+  <div class="btn-row" id="btnRow">
+    <div class="loading" style="padding:8px">Loading…</div>
+  </div>
+</div>
+
+<div class="table-wrap">
+
+  <div class="loading" id="loading">Loading data…</div>
+  <table id="pivotTable" style="display:none">
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<p class="table-note">Only weeks with pending tasks are shown in the table above.</p>
+
+<script>
+  const ROUNDING_SKIP  = ['❌', '⚠️'];
+  const NOTES_COMPLETE = 'Final Step - All Notes in Charge Capture';
+  
+  let activeCC = null;
+  let cachedWL = null;
+  let cachedWeekIdToLabel = {};
+  let allCoordinators = [];
+
+  grist.ready({ requiredAccess: 'read table', allowSelectBy: true });
+
+  grist.onRecords(async (records) => {
+    try {
+      const wl = await grist.docApi.fetchTable('Week_List');
+      cachedWL = wl;
+
+      const weeksTable = await grist.docApi.fetchTable('Weeks_Table');
+      cachedWeekIdToLabel = {};
+      for (let i = 0; i < weeksTable.id.length; i++) {
+        cachedWeekIdToLabel[weeksTable.id[i]] = weeksTable.Week[i];
+      }
+
+      buildTable();
+      renderButtons();
+    } catch(e) {
+      document.getElementById('loading').textContent = 'Error: ' + e.message;
+    }
+  });
+
+  function getVal(table, col, i) {
+    if (table[col + '_Value']) return table[col + '_Value'][i];
+    if (table[col]) return table[col][i];
+    return null;
+  }
+
+  function renderButtons() {
+    const row = document.getElementById('btnRow');
+    row.innerHTML = '';
+
+    const allBtn = document.createElement('button');
+    allBtn.className = 'cc-btn' + (activeCC === null ? ' active' : '');
+    allBtn.textContent = 'All';
+    allBtn.onclick = () => selectCC(null, allBtn);
+    row.appendChild(allBtn);
+
+    allCoordinators.forEach(cc => {
+      const btn = document.createElement('button');
+      btn.className = 'cc-btn' + (activeCC === cc ? ' active' : '');
+      btn.textContent = cc;
+      btn.onclick = () => selectCC(cc, btn);
+      row.appendChild(btn);
+    });
+  }
+
+  function selectCC(cc, btn) {
+    activeCC = cc;
+    document.querySelectorAll('.cc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const wl = cachedWL;
+    if (cc === null) {
+      grist.setSelectedRows(null);
+    } else if (wl && wl.id) {
+      const ids = [];
+      for (let i = 0; i < wl.id.length; i++) {
+        if (getVal(wl, 'Care_Coordinator', i) === cc) ids.push(wl.id[i]);
+      }
+      grist.setSelectedRows(ids);
+    }
+
+    buildTable();
+  }
+
+  function buildTable() {
+    const wl = cachedWL;
+    const weekIdToLabel = cachedWeekIdToLabel;
+
+    if (!wl || !wl.id || wl.id.length === 0) {
+      document.getElementById('loading').textContent = 'No data found.';
+      return;
+    }
+
+    const weeksMap = new Map();
+    const ccSet = new Set();
+
+    for (let i = 0; i < wl.id.length; i++) {
+      const rawWeek = wl.Week ? wl.Week[i] : null;
+      const weekLabel = rawWeek ? (weekIdToLabel[rawWeek] || String(rawWeek)) : null;
+      const cc = getVal(wl, 'Care_Coordinator', i);
+      if (weekLabel) weeksMap.set(weekLabel, weekLabel);
+      if (cc) ccSet.add(cc);
+    }
+
+    allCoordinators = Array.from(ccSet).sort();
+
+    const coordinators = activeCC
+      ? allCoordinators.filter(cc => cc === activeCC)
+      : allCoordinators;
+    const weeks = Array.from(weeksMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (weeks.length === 0 || coordinators.length === 0) {
+      document.getElementById('loading').textContent = 'Could not build table.';
+      return;
+    }
+
+    // matrix[weekLabel][cc] = { incomplete, complete, skipped }
+    const matrix = {};
+    weeks.forEach(([wId]) => {
+      matrix[wId] = {};
+      coordinators.forEach(cc => { matrix[wId][cc] = { incomplete: 0, complete: 0, skipped: 0 }; });
+    });
+
+    for (let i = 0; i < wl.id.length; i++) {
+      const rawWeek = wl.Week ? wl.Week[i] : null;
+      const weekLabel = rawWeek ? (weekIdToLabel[rawWeek] || String(rawWeek)) : null;
+      const cc = getVal(wl, 'Care_Coordinator', i);
+
+      if (activeCC && cc !== activeCC) continue;
+      if (!weekLabel || !cc) continue;
+      if (!matrix[weekLabel] || matrix[weekLabel][cc] === undefined) continue;
+
+      const notesStatus    = String(getVal(wl, 'Notes_Status', i)    || '').trim();
+      const roundingStatus = String(getVal(wl, 'Rounding_Status', i) || '').trim();
+
+      if (ROUNDING_SKIP.includes(roundingStatus)) {
+          matrix[weekLabel][cc].skipped++;
+          continue;
+      }
+
+      if (notesStatus === NOTES_COMPLETE) {
+        matrix[weekLabel][cc].complete++;
+      } else {
+        matrix[weekLabel][cc].incomplete++;
+      }
+    }
+
+    // Row totals (incomplete only)
+    const rowTotals   = {};
+    const rowComplete = {};
+    const rowSkipped  = {};
+    weeks.forEach(([wId]) => {
+      rowTotals[wId]   = coordinators.reduce((s, cc) => s + matrix[wId][cc].incomplete, 0);
+      rowComplete[wId] = coordinators.reduce((s, cc) => s + matrix[wId][cc].complete,   0);
+      rowSkipped[wId]  = coordinators.reduce((s, cc) => s + matrix[wId][cc].skipped,    0);
+    });
+
+    // Column totals (incomplete only)
+    const colTotals = {};
+    coordinators.forEach(cc => {
+      colTotals[cc] = weeks.reduce((s, [wId]) => s + matrix[wId][cc].incomplete, 0);
+    });
+    const grandTotal = coordinators.reduce((s, cc) => s + colTotals[cc], 0);
+
+    // ── Render thead ──────────────────────────────────────────────────────
+    const thead = document.getElementById('thead');
+    thead.innerHTML = '';
+    const hRow = document.createElement('tr');
+    const weekTh = document.createElement('th');
+    weekTh.textContent = 'WEEK';
+    hRow.appendChild(weekTh);
+    coordinators.forEach(cc => {
+      const th = document.createElement('th');
+      th.textContent = cc;
+      hRow.appendChild(th);
+    });
+    const totalTh = document.createElement('th');
+    totalTh.textContent = 'TOTAL';
+    hRow.appendChild(totalTh);
+    thead.appendChild(hRow);
+
+    // ── Render tbody ──────────────────────────────────────────────────────
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+
+    weeks.forEach(([wId, label]) => {
+      // Skip rows where total incomplete is zero
+      if (rowTotals[wId] === 0) return;
+      const tr = document.createElement('tr');
+
+      const weekTd = document.createElement('td');
+      weekTd.textContent = label;
+      tr.appendChild(weekTd);
+
+      coordinators.forEach(cc => {
+        const inc  = matrix[wId][cc].incomplete;
+        const comp = matrix[wId][cc].complete;
+        const skip = matrix[wId][cc].skipped;
+        const td   = document.createElement('td');
+        td.appendChild(makeCell(inc, comp, skip));
+        tr.appendChild(td);
+      });
+
+      // Row total cell
+      const rtd = document.createElement('td');
+      rtd.appendChild(makeCell(rowTotals[wId], rowComplete[wId], rowSkipped[wId]));
+      tr.appendChild(rtd);
+
+      tbody.appendChild(tr);
+    });
+
+    // ── Total row ─────────────────────────────────────────────────────────
+    const totalTr = document.createElement('tr');
+    totalTr.className = 'total-row';
+
+    const labelTd = document.createElement('td');
+    labelTd.textContent = 'Total Incomplete';
+    totalTr.appendChild(labelTd);
+
+    coordinators.forEach(cc => {
+      const td = document.createElement('td');
+      const span = document.createElement('span');
+      span.className = 'cell-val ' + (colTotals[cc] === 0 ? 'zero' : 'high');
+      span.textContent = colTotals[cc] === 0 ? '–' : colTotals[cc];
+      td.appendChild(span);
+      totalTr.appendChild(td);
+    });
+
+    // Grand total cell
+    const gtd = document.createElement('td');
+    const gspan = document.createElement('span');
+    gspan.className = 'cell-val ' + (grandTotal === 0 ? 'zero' : 'high');
+    gspan.textContent = grandTotal === 0 ? '–' : grandTotal;
+    gtd.appendChild(gspan);
+    totalTr.appendChild(gtd);
+
+    tbody.appendChild(totalTr);
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('pivotTable').style.display = 'table';
+  }
+
+  function makeCell(inc, comp, skip) {
+    const wrap = document.createElement('span');
+    wrap.className = 'cell-wrap';
+
+    // Red skipped badge — top left
+    if (skip > 0) {
+      const skipSup = document.createElement('span');
+      skipSup.className = 'cell-skipped';
+      skipSup.textContent = skip;
+      skipSup.title = skip + ' skipped (❌)';
+      wrap.appendChild(skipSup);
+    }
+
+    // Main incomplete number
+    const span = document.createElement('span');
+    span.className = 'cell-val ' + getColor(inc);
+    span.textContent = inc === 0 ? '–' : inc;
+    wrap.appendChild(span);
+
+    // Green completed badge — top right
+    if (comp > 0) {
+      const sup = document.createElement('span');
+      sup.className = 'cell-complete';
+      sup.textContent = comp;
+      sup.title = comp + ' completed';
+      wrap.appendChild(sup);
+    }
+
+    return wrap;
+  }
+
+  function getColor(n) {
+    if (!n || n === 0) return 'zero';
+    return 'high';
+  }
+</script>
+</body>
+</html>

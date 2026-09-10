@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facility Practitioners</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #f1f0ed;
+  min-height: 100vh;
+  padding: 16px;
+}
+.facility-header {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.07em; color: #aaa;
+  font-family: 'DM Mono', monospace; margin-bottom: 14px;
+}
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.column-header {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: #999;
+  font-family: 'DM Mono', monospace;
+  margin-bottom: 4px;
+}
+.column-count {
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  color: #bbb; margin-bottom: 10px;
+  min-height: 16px;
+}
+.practitioner-card {
+  background: #fff; border: 1px solid #e0deda;
+  border-radius: 10px; padding: 12px 14px;
+  margin-bottom: 8px; display: flex;
+  align-items: center; gap: 10px;
+  transition: box-shadow 0.15s;
+}
+.practitioner-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+.practitioner-card.primary     { border-left: 4px solid #1a1916; }
+.practitioner-card.backup      { border-left: 4px solid #e0deda; }
+.practitioner-card.empty-slot  { border-left: 4px solid #f0eeea; background: #fafaf8; opacity: 0.55; }
+.practitioner-card.credentialed { border-left: 4px solid #1a1916; }
+.role-badge {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; font-family: 'DM Mono', monospace;
+  padding: 3px 7px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+}
+.role-badge.primary { background: #1a1916; color: #fff; }
+.role-badge.backup  { background: #f1f0ed; color: #888; }
+.role-badge.empty   { background: #f1f0ed; color: #ccc; }
+.role-badge.index   { background: #f1f0ed; color: #888; min-width: 30px; text-align: center; }
+.practitioner-name { font-size: 13px; font-weight: 500; color: #111; }
+.practitioner-name.unassigned { color: #ccc; font-style: italic; font-weight: 400; }
+.empty-state {
+  padding: 24px; text-align: center; color: #bbb;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  background: #fff; border-radius: 10px; border: 1px solid #e0deda;
+}
+</style>
+</head>
+<body>
+
+<div class="facility-header" id="facilityName">FACILITY PRACTITIONERS</div>
+<div class="columns">
+  <div>
+    <div class="column-header">Assigned</div>
+    <div class="column-count" id="assignedCount"></div>
+    <div id="assignedList"><div class="empty-state">Select a facility</div></div>
+  </div>
+  <div>
+    <div class="column-header">Credentialed</div>
+    <div class="column-count" id="credentialedCount"></div>
+    <div id="credentialedList"><div class="empty-state">Select a facility</div></div>
+  </div>
+</div>
+
+<script>
+  // Maps loaded once at startup
+  var empMap = {};      // id -> Employee_Name
+  var facTable = null;  // full Facility table: { id:[], Credentialed_Practitioners:[], ... }
+
+  function makeCard(text, badgeText, cardClass, badgeClass, nameClass) {
+    var card = document.createElement('div');
+    card.className = 'practitioner-card ' + cardClass;
+    var badge = document.createElement('span');
+    badge.className = 'role-badge ' + badgeClass;
+    badge.textContent = badgeText;
+    var nameEl = document.createElement('span');
+    nameEl.className = 'practitioner-name' + (nameClass ? ' ' + nameClass : '');
+    nameEl.textContent = text;
+    card.appendChild(badge);
+    card.appendChild(nameEl);
+    return card;
+  }
+
+  function renderAssigned(record) {
+    var slots = [
+      { role: 'Primary',    key: 'Primary_Practitioner', isPrimary: true  },
+      { role: '1st Backup', key: 'c1st_Backup',          isPrimary: false },
+      { role: '2nd Backup', key: 'c2nd_Backup',          isPrimary: false },
+      { role: '3rd Backup', key: 'c3rd_Backup',          isPrimary: false },
+      { role: '4th Backup', key: 'c4th_Backup',          isPrimary: false },
+    ];
+    var list = document.getElementById('assignedList');
+    list.innerHTML = '';
+    var count = 0;
+    slots.forEach(function(slot) {
+      var value = record[slot.key];
+      var hasValue = value && String(value).trim() !== '';
+      if (hasValue) count++;
+      list.appendChild(makeCard(
+        hasValue ? String(value) : 'Not assigned',
+        slot.role,
+        hasValue ? (slot.isPrimary ? 'primary' : 'backup') : 'empty-slot',
+        hasValue ? (slot.isPrimary ? 'primary' : 'backup') : 'empty',
+        hasValue ? '' : 'unassigned'
+      ));
+    });
+    document.getElementById('assignedCount').textContent =
+      count + ' practitioner' + (count !== 1 ? 's' : '');
+  }
+
+  function renderCredentialed(rowId) {
+    var list = document.getElementById('credentialedList');
+    var countEl = document.getElementById('credentialedCount');
+
+    if (!facTable) {
+      list.innerHTML = '<div class="empty-state">Loading...</div>';
+      return;
+    }
+
+    // Find this facility row in the fetched table
+    var idx = facTable.id.indexOf(rowId);
+    if (idx === -1) {
+      list.innerHTML = '<div class="empty-state">No credentialed practitioners on record</div>';
+      countEl.textContent = '';
+      return;
+    }
+
+    var raw = facTable.Credentialed_Practitioners[idx];
+    // raw is ["L", id1, id2, ...] from fetchTable
+    var ids = Array.isArray(raw)
+      ? raw.filter(function(v) { return typeof v === 'number'; })
+      : [];
+
+    var names = ids.map(function(id) { return empMap[id]; }).filter(Boolean);
+    names.sort(function(a, b) { return a.localeCompare(b); });
+
+    list.innerHTML = '';
+    if (names.length === 0) {
+      countEl.textContent = '';
+      list.innerHTML = '<div class="empty-state">No credentialed practitioners on record</div>';
+      return;
+    }
+
+    countEl.textContent = names.length + ' practitioner' + (names.length !== 1 ? 's' : '');
+    names.forEach(function(name, i) {
+      list.appendChild(makeCard(
+        name,
+        String(i + 1).padStart(2, '0'),
+        'credentialed', 'index', ''
+      ));
+    });
+  }
+
+  grist.ready({ requiredAccess: 'read table' });
+
+  // Load both tables upfront
+  var empReady = false, facReady = false;
+  var pendingRowId = null;
+  var pendingRecord = null;
+
+  function tryRender() {
+    if (empReady && facReady && pendingRowId !== null) {
+      renderCredentialed(pendingRowId);
+    }
+  }
+
+  grist.docApi.fetchTable('Employee').then(function(data) {
+    for (var i = 0; i < data.id.length; i++) {
+      empMap[data.id[i]] = data.Employee_Name[i];
+    }
+    empReady = true;
+    tryRender();
+  });
+
+  grist.docApi.fetchTable('Facility').then(function(data) {
+    facTable = data;
+    facReady = true;
+    tryRender();
+  });
+
+  grist.onRecord(function(record) {
+    // Facility name header
+    var fname = record.Facility_Name || '';
+    document.getElementById('facilityName').textContent =
+      fname ? String(fname).toUpperCase() : 'FACILITY PRACTITIONERS';
+
+    // Left panel — assigned (comes through onRecord fine)
+    renderAssigned(record);
+
+    // Right panel — use row id to look up in fetched table
+    pendingRowId = record.id;
+    pendingRecord = record;
+
+    if (empReady && facReady) {
+      renderCredentialed(record.id);
+    }
+    // else tryRender() will fire once both are ready
+  });
+</script>
+</body>
+</html>
