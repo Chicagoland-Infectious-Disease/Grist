@@ -206,8 +206,20 @@
   }
 
   function resolveValue(raw, lookup) {
-    // If raw is a number (reference row ID) and we have a lookup map, resolve it.
-    // Otherwise return the raw value as a string.
+    // Handles three shapes coming from Grist:
+    //   * single Reference  -> a number (row id), e.g. 45
+    //   * Reference List     -> ['L', id1, id2, ...]
+    //   * plain text         -> a string
+    // For a ReferenceList we resolve the FIRST id (each EMR row maps to one
+    // facility in practice), stripping the leading 'L' marker.
+    if (Array.isArray(raw)) {
+      var ids = raw[0] === 'L' ? raw.slice(1) : raw;
+      var firstId = ids.find(function(x){ return typeof x === 'number'; });
+      if (firstId !== undefined && lookup && lookup[firstId] !== undefined) {
+        return lookup[firstId];
+      }
+      return firstId !== undefined ? String(firstId) : '';
+    }
     if (typeof raw === 'number' && lookup && lookup[raw] !== undefined) {
       return lookup[raw];
     }
