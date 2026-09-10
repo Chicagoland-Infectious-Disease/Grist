@@ -69,7 +69,7 @@
     <div class="row">
       <div class="col">
         <label>Storage account name</label>
-        <input type="text" id="accountName" value="idsqrcodes" oninput="generate()" />
+        <input type="text" id="accountName" value="idsqrcodes2" oninput="generate()" />
       </div>
       <div class="col">
         <label>Container name</label>
@@ -375,7 +375,7 @@
       });
     }
 
-    var file = slugify(username) + '.png';
+    var file = slugify(username);
     var url  = 'https://' + account + '.blob.core.windows.net/' + container + '/' + file;
     document.getElementById('filename').textContent = file;
     document.getElementById('fullUrl').textContent  = url;
