@@ -140,16 +140,22 @@ tbody tr.total-row .cell-val.zero {
   </table>
 </div>
 
-<p class="table-note">Only weeks with pending tasks are shown in the table above.</p>
+<p class="table-note">Only weeks with pending tasks are shown in the table above. Columns are the Active Care Coordinators in the Employee table.</p>
 
 <script>
   const ROUNDING_SKIP  = ['❌', '⚠️'];
   const NOTES_COMPLETE = 'Final Step - All Notes in Charge Capture';
-  
+
+  // Employee table filter — columns come from here, so updating the Employee
+  // table (status or job title) updates this widget automatically.
+  const CC_JOB_TITLE   = 'care coordinator';
+  const CC_STATUS      = 'active';
+
   let activeCC = null;
   let cachedWL = null;
   let cachedWeekIdToLabel = {};
   let allCoordinators = [];
+  let activeCoordinators = [];
 
   grist.ready({ requiredAccess: 'read table', allowSelectBy: true });
 
@@ -162,6 +168,26 @@ tbody tr.total-row .cell-val.zero {
       cachedWeekIdToLabel = {};
       for (let i = 0; i < weeksTable.id.length; i++) {
         cachedWeekIdToLabel[weeksTable.id[i]] = weeksTable.Week[i];
+      }
+
+      // Active Care Coordinators, straight from the Employee table
+      activeCoordinators = [];
+      try {
+        const emp = await grist.docApi.fetchTable('Employee');
+        for (let i = 0; i < emp.id.length; i++) {
+          const name   = String(getVal(emp, 'Employee_Name', i)     || '').trim();
+          const title  = String(getVal(emp, 'Job_Title', i)         || '').trim();
+          const status = String(getVal(emp, 'Employment_Status', i) || '').trim();
+          if (name &&
+              title.toLowerCase()  === CC_JOB_TITLE &&
+              status.toLowerCase() === CC_STATUS) {
+            activeCoordinators.push(name);
+          }
+        }
+        activeCoordinators.sort();
+      } catch (e) {
+        // If the Employee table can't be read, fall back to the names in Week_List
+        activeCoordinators = [];
       }
 
       buildTable();
@@ -235,7 +261,10 @@ tbody tr.total-row .cell-val.zero {
       if (cc) ccSet.add(cc);
     }
 
-    allCoordinators = Array.from(ccSet).sort();
+    // Columns come from the Employee table; Week_List names are only a fallback
+    allCoordinators = activeCoordinators.length
+      ? activeCoordinators.slice()
+      : Array.from(ccSet).sort();
 
     const coordinators = activeCC
       ? allCoordinators.filter(cc => cc === activeCC)
