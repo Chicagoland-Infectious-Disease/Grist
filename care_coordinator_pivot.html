@@ -222,8 +222,11 @@ tbody tr.total-row .cell-val.zero {
         cachedWeekIdToLabel[weeksTable.id[i]] = weeksTable.Week[i];
       }
 
-      // Active Care Coordinators, straight from the Employee table
-      activeCoordinators = [];
+      // Active Care Coordinators, straight from the Employee table.
+      // Built in a local array and assigned once AFTER the await: onRecords can
+      // fire twice on load, and appending to the shared array from both calls
+      // would list every coordinator twice.
+      let coords = [];
       try {
         const emp = await grist.docApi.fetchTable('Employee');
         for (let i = 0; i < emp.id.length; i++) {
@@ -233,14 +236,14 @@ tbody tr.total-row .cell-val.zero {
           if (name &&
               title.toLowerCase()  === CC_JOB_TITLE &&
               status.toLowerCase() === CC_STATUS) {
-            activeCoordinators.push(name);
+            coords.push(name);
           }
         }
-        activeCoordinators.sort();
       } catch (e) {
         // If the Employee table can't be read, fall back to the names in Week_List
-        activeCoordinators = [];
+        coords = [];
       }
+      activeCoordinators = Array.from(new Set(coords)).sort();
 
       buildTable();
       renderButtons();
