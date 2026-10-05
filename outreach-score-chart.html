@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Outreach Score Chart</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #f1f0ed;
+  color: #1a1916;
+  padding: 16px;
+  min-height: 100vh;
+}
+.head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.title {
+  font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.07em; color: #aaa;
+}
+.month {
+  font-size: 18px; font-weight: 600; color: #1a1916;
+}
+.meta {
+  font-family: 'DM Mono', monospace; font-size: 12px; color: #777;
+}
+.meta b { color: #1a1916; font-weight: 500; }
+
+.chart {
+  background: #fff; border: 1px solid #e0deda; border-radius: 10px;
+  padding: 18px 16px 10px;
+}
+.bars {
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  gap: 14px;
+  align-items: end;
+  height: 180px;
+  border-bottom: 1px solid #e0deda;
+  padding-bottom: 0;
+}
+.col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.val {
+  font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500;
+  margin-bottom: 4px; color: #1a1916;
+}
+.val.zero { color: #bbb; }
+.bar {
+  width: 100%; max-width: 72px; border-radius: 6px 6px 0 0;
+  transition: height 0.25s ease;
+  min-height: 2px;
+}
+.bar.zero { background: #ebe9e5 !important; }
+.labels {
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  gap: 14px; margin-top: 8px;
+}
+.lbl {
+  text-align: center; font-size: 12px; color: #444; line-height: 1.25;
+}
+.lbl .pct {
+  display: block; font-family: 'DM Mono', monospace; font-size: 11px; color: #999; margin-top: 2px;
+}
+.empty {
+  padding: 36px; text-align: center; color: #aaa;
+  font-family: 'DM Mono', monospace; font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div>
+    <div class="title">Outreach score</div>
+    <div class="month" id="month">—</div>
+  </div>
+  <div class="meta" id="meta"></div>
+</div>
+
+<div class="chart" id="chart">
+  <div class="empty" id="empty">Select a month…</div>
+  <div class="bars" id="bars" style="display:none"></div>
+  <div class="labels" id="labels" style="display:none"></div>
+</div>
+
+<script>
+  // Score categories, in display order, with the same colours as the Score choice column.
+  const CATEGORIES = [
+    { key: 'Poor',      label: '1 - Poor',       color: '#E00A17' },
+    { key: 'Fair',      label: '2 - Fair',       color: '#FD8182' },
+    { key: 'Good',      label: '3 - Good',       color: '#FECBCC' },
+    { key: 'VeryGood',  label: '4 - Very Good',  color: '#7ED321' },
+    { key: 'Excellent', label: '5 - Excellent',  color: '#126E0E' },
+    { key: 'NoScore',   label: 'Contacted, no score', color: '#cfcac3', optional: true },
+  ];
+
+  grist.ready({
+    requiredAccess: 'read table',
+    columns: [
+      { name: 'Month',     title: 'Month label',            type: 'Text' },
+      { name: 'Poor',      title: '1 - Poor (count)',       type: 'Int,Numeric' },
+      { name: 'Fair',      title: '2 - Fair (count)',       type: 'Int,Numeric' },
+      { name: 'Good',      title: '3 - Good (count)',       type: 'Int,Numeric' },
+      { name: 'VeryGood',  title: '4 - Very Good (count)',  type: 'Int,Numeric' },
+      { name: 'Excellent', title: '5 - Excellent (count)',  type: 'Int,Numeric' },
+      { name: 'NoScore',   title: 'Contacted, no score (count)', type: 'Int,Numeric', optional: true },
+      { name: 'Total',     title: 'Outreach count (optional)',   type: 'Int,Numeric', optional: true },
+    ],
+  });
+
+  grist.onRecord((record, mappings) => {
+    const r = grist.mapColumnNames(record, mappings);
+    if (!r) { showEmpty('Map the columns in the widget panel →'); return; }
+    render(r);
+  });
+
+  function showEmpty(msg) {
+    document.getElementById('empty').textContent = msg;
+    document.getElementById('empty').style.display = '';
+    document.getElementById('bars').style.display = 'none';
+    document.getElementById('labels').style.display = 'none';
+    document.getElementById('month').textContent = '—';
+    document.getElementById('meta').textContent = '';
+  }
+
+  function num(v) { const n = Number(v); return isFinite(n) ? n : 0; }
+
+  function render(r) {
+    const cats = CATEGORIES.filter(c => !c.optional || r[c.key] !== undefined && r[c.key] !== null);
+    const values = cats.map(c => num(r[c.key]));
+    const scored = cats.filter(c => c.key !== 'NoScore')
+                       .reduce((s, c) => s + num(r[c.key]), 0);
+    const max = Math.max(1, ...values);
+
+    document.getElementById('month').textContent = r.Month || '—';
+
+    const metaParts = [];
+    if (r.Total !== undefined && r.Total !== null) metaParts.push(`<b>${num(r.Total)}</b> outreach`);
+    metaParts.push(`<b>${scored}</b> scored`);
+    document.getElementById('meta').innerHTML = metaParts.join(' · ');
+
+    const bars = document.getElementById('bars');
+    const labels = document.getElementById('labels');
+    bars.innerHTML = ''; labels.innerHTML = '';
+    bars.style.setProperty('--n', cats.length);
+    labels.style.setProperty('--n', cats.length);
+
+    cats.forEach((c, i) => {
+      const v = values[i];
+      const col = document.createElement('div');
+      col.className = 'col';
+
+      const val = document.createElement('div');
+      val.className = 'val' + (v === 0 ? ' zero' : '');
+      val.textContent = v;
+      col.appendChild(val);
+
+      const bar = document.createElement('div');
+      bar.className = 'bar' + (v === 0 ? ' zero' : '');
+      bar.style.background = c.color;
+      bar.style.height = Math.round((v / max) * 100) + '%';
+      bar.title = `${c.label}: ${v}`;
+      col.appendChild(bar);
+      bars.appendChild(col);
+
+      const lbl = document.createElement('div');
+      lbl.className = 'lbl';
+      const pct = (c.key !== 'NoScore' && scored > 0) ? Math.round(v / scored * 100) + '%' : '';
+      lbl.innerHTML = `${c.label}${pct ? `<span class="pct">${pct} of scored</span>` : ''}`;
+      labels.appendChild(lbl);
+    });
+
+    document.getElementById('empty').style.display = 'none';
+    bars.style.display = '';
+    labels.style.display = '';
+  }
+</script>
+</body>
+</html>
