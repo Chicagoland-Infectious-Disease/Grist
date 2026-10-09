@@ -71,6 +71,21 @@ body {
   padding: 36px; text-align: center; color: #aaa;
   font-family: 'DM Mono', monospace; font-size: 13px;
 }
+
+/* Who contacted breakdown */
+.who {
+  margin-top: 12px;
+  font-size: 13px; color: #444; line-height: 1.7;
+}
+.who-title {
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.07em; color: #aaa;
+  margin-bottom: 2px;
+}
+.who-item { display: inline-block; margin-right: 14px; white-space: nowrap; }
+.who-item b { font-weight: 600; color: #1a1916; }
+.who-item .n { font-family: 'DM Mono', monospace; font-size: 11px; color: #999; }
+.who-item.none, .who-item.none b { color: #999; }
 </style>
 </head>
 <body>
@@ -89,6 +104,11 @@ body {
   <div class="labels" id="labels" style="display:none"></div>
 </div>
 
+<div class="who" id="who" style="display:none">
+  <div class="who-title">Who contacted</div>
+  <div id="whoList"></div>
+</div>
+
 <script>
   // Score categories, in display order, with the same colours as the Score choice column.
   const CATEGORIES = [
@@ -99,6 +119,11 @@ body {
     { key: 'Excellent', label: '5 - Excellent',  color: '#126E0E' },
     { key: 'NoScore',   label: 'Contacted, no score', color: '#cfcac3', optional: true },
   ];
+
+  // Outreach rows live in this table; each has a Month reference and a Who_Contacted choice.
+  const OUTREACH_TABLE = 'Facility_Outreach';
+  const WHO_COL = 'Who_Contacted';
+  const MONTH_REF_COL = 'Month';
 
   grist.ready({
     requiredAccess: 'read table',
@@ -118,6 +143,7 @@ body {
     const r = grist.mapColumnNames(record, mappings);
     if (!r) { showEmpty('Map the columns in the widget panel →'); return; }
     render(r);
+    renderWho(record.id);   // the selected Month row's id
   });
 
   function showEmpty(msg) {
@@ -125,6 +151,7 @@ body {
     document.getElementById('empty').style.display = '';
     document.getElementById('bars').style.display = 'none';
     document.getElementById('labels').style.display = 'none';
+    document.getElementById('who').style.display = 'none';
     document.getElementById('month').textContent = '—';
     document.getElementById('meta').textContent = '';
   }
@@ -179,6 +206,50 @@ body {
     document.getElementById('empty').style.display = 'none';
     bars.style.display = '';
     labels.style.display = '';
+  }
+
+  // Share of the selected month's outreach rows by who made the contact.
+  // Blank Who_Contacted is shown as "Not recorded" so gaps stay visible.
+  let whoRequest = 0;
+  async function renderWho(monthId) {
+    const box = document.getElementById('who');
+    const list = document.getElementById('whoList');
+    const myRequest = ++whoRequest;   // ignore stale responses if the user clicks quickly
+    try {
+      const t = await grist.docApi.fetchTable(OUTREACH_TABLE);
+      if (myRequest !== whoRequest) return;
+
+      const counts = new Map();
+      let total = 0, notRecorded = 0;
+      for (let i = 0; i < t.id.length; i++) {
+        if (t[MONTH_REF_COL][i] !== monthId) continue;
+        total++;
+        const who = String(t[WHO_COL][i] || '').trim();
+        if (!who) { notRecorded++; continue; }
+        counts.set(who, (counts.get(who) || 0) + 1);
+      }
+
+      if (total === 0) { box.style.display = 'none'; return; }
+
+      const pct = n => Math.round(n / total * 100) + '%';
+      const items = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([who, n]) =>
+          `<span class="who-item"><b>${escapeHtml(who)}</b> ${pct(n)} <span class="n">(${n})</span></span>`);
+      if (notRecorded) {
+        items.push(`<span class="who-item none"><b>Not recorded</b> ${pct(notRecorded)} <span class="n">(${notRecorded})</span></span>`);
+      }
+
+      list.innerHTML = items.join('');
+      box.style.display = '';
+    } catch (e) {
+      box.style.display = 'none';
+      console.error('Who contacted:', e);
+    }
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   }
 </script>
 </body>
