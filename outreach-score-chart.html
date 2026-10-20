@@ -32,9 +32,13 @@ body {
 .meta b { color: #1a1916; font-weight: 500; }
 
 .chart {
+  position: relative;
   background: #fff; border: 1px solid #e0deda; border-radius: 10px;
   padding: 18px 16px 10px;
 }
+/* Reserve room at the top for the "Who contacted" box so bars never run under it */
+.chart.has-who { padding-top: 58px; }
+
 .bars {
   display: grid;
   grid-template-columns: repeat(var(--n), 1fr);
@@ -72,15 +76,17 @@ body {
   font-family: 'DM Mono', monospace; font-size: 13px;
 }
 
-/* Who contacted breakdown */
+/* Who contacted breakdown — top-left corner of the chart's white space */
 .who {
-  margin-top: 12px;
-  font-size: 14px; color: #000; font-weight: 700; line-height: 1.7;
+  position: absolute;
+  top: 12px; left: 16px; right: 16px;
+  z-index: 2;
+  font-size: 13px; color: #000; font-weight: 700; line-height: 1.5;
 }
 .who-title {
-  font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 700;
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.07em; color: #000;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 .who-item { display: inline-block; margin-right: 16px; white-space: nowrap; color: #000; font-weight: 700; }
 .who-item b { font-weight: 700; color: #000; }
@@ -99,14 +105,13 @@ body {
 </div>
 
 <div class="chart" id="chart">
+  <div class="who" id="who" style="display:none">
+    <div class="who-title">Who contacted</div>
+    <div id="whoList"></div>
+  </div>
   <div class="empty" id="empty">Select a month…</div>
   <div class="bars" id="bars" style="display:none"></div>
   <div class="labels" id="labels" style="display:none"></div>
-</div>
-
-<div class="who" id="who" style="display:none">
-  <div class="who-title">Who contacted</div>
-  <div id="whoList"></div>
 </div>
 
 <script>
@@ -146,12 +151,17 @@ body {
     renderWho(record.id);   // the selected Month row's id
   });
 
+  function setWhoVisible(show) {
+    document.getElementById('who').style.display = show ? '' : 'none';
+    document.getElementById('chart').classList.toggle('has-who', show);
+  }
+
   function showEmpty(msg) {
     document.getElementById('empty').textContent = msg;
     document.getElementById('empty').style.display = '';
     document.getElementById('bars').style.display = 'none';
     document.getElementById('labels').style.display = 'none';
-    document.getElementById('who').style.display = 'none';
+    setWhoVisible(false);
     document.getElementById('month').textContent = '—';
     document.getElementById('meta').textContent = '';
   }
@@ -212,7 +222,6 @@ body {
   // Blank Who_Contacted is shown as "Not recorded" so gaps stay visible.
   let whoRequest = 0;
   async function renderWho(monthId) {
-    const box = document.getElementById('who');
     const list = document.getElementById('whoList');
     const myRequest = ++whoRequest;   // ignore stale responses if the user clicks quickly
     try {
@@ -229,7 +238,7 @@ body {
         counts.set(who, (counts.get(who) || 0) + 1);
       }
 
-      if (total === 0) { box.style.display = 'none'; return; }
+      if (total === 0) { setWhoVisible(false); return; }
 
       const pct = n => Math.round(n / total * 100) + '%';
       const items = [...counts.entries()]
@@ -241,9 +250,9 @@ body {
       }
 
       list.innerHTML = items.join('');
-      box.style.display = '';
+      setWhoVisible(true);
     } catch (e) {
-      box.style.display = 'none';
+      setWhoVisible(false);
       console.error('Who contacted:', e);
     }
   }
