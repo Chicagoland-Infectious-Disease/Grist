@@ -42,15 +42,18 @@ input:focus, select:focus, textarea:focus {
 /* Priority as pill buttons, coloured like the Priority column */
 .pills { display: flex; gap: 6px; flex-wrap: wrap; }
 .pill {
-  font: inherit; font-size: 13px; font-weight: 600;
-  border: 2px solid transparent; border-radius: 999px;
-  padding: 5px 14px; cursor: pointer; opacity: .55;
-  transition: opacity .12s ease;
+  --c: #1a1916;
+  font: inherit; font-size: 13px; font-weight: 700;
+  border: 2px solid var(--c); border-radius: 999px;
+  background: #fff; color: var(--c);
+  padding: 6px 16px; cursor: pointer;
+  transition: background .12s ease, color .12s ease;
 }
-.pill:hover { opacity: .85; }
+.pill:hover { background: color-mix(in srgb, var(--c) 12%, #fff); }
 .pill:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
-.pill[aria-pressed="true"] { opacity: 1; border-color: #1a1916; }
+.pill[aria-pressed="true"] { background: var(--c); color: #fff; }
 .pill[aria-pressed="true"]::before { content: "✓ "; }
+.pills { min-height: 38px; align-items: center; }
 
 .actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 8px; }
 .status { text-align: center; }
@@ -90,14 +93,15 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
       <textarea id="issue" placeholder="What happened, who's involved at the facility, and what's been tried so far."></textarea>
     </div>
 
-    <div class="field">
-      <label for="category">Category</label>
-      <select id="category"><option value="">Choose…</option></select>
-    </div>
-
-    <div class="field">
-      <label id="priorityLabel">Priority</label>
-      <div class="pills" id="priority" role="group" aria-labelledby="priorityLabel"></div>
+    <div class="row">
+      <div class="field">
+        <label for="category">Category</label>
+        <select id="category"><option value="">Choose…</option></select>
+      </div>
+      <div class="field">
+        <label id="priorityLabel">Priority</label>
+        <div class="pills" id="priority" role="group" aria-labelledby="priorityLabel"></div>
+      </div>
     </div>
 
     <div class="actions">
@@ -117,15 +121,11 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
                'Billing', 'Relationship / Satisfaction', 'Other'],
     Priority: ['High', 'Medium', 'Low'],
   };
-  const FALLBACK_COLORS = {
-    High:   { fillColor: '#E00A17', textColor: '#FFFFFF' },
-    Medium: { fillColor: '#FCD34D', textColor: '#000000' },
-    Low:    { fillColor: '#D1E7DD', textColor: '#000000' },
-  };
+  // Deep, high-contrast colours for the priority buttons (white text on solid fill).
+  const PRIORITY_COLORS = { High: '#B3000C', Medium: '#B45309', Low: '#1B6E2A' };
 
   let facilityByName = new Map();   // lower-cased name -> { id, name }
   let priorityValue = '';
-  let priorityStyles = FALLBACK_COLORS;
 
   grist.ready({ requiredAccess: 'full' });
 
@@ -143,7 +143,6 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
 
       const choices = await readChoices();
       fillSelect('category', choices.Category.list);
-      priorityStyles = Object.keys(choices.Priority.styles).length ? choices.Priority.styles : FALLBACK_COLORS;
       buildPriority(choices.Priority.list);
 
       $('loading').style.display = 'none';
@@ -187,9 +186,7 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'pill'; b.textContent = v;
       b.setAttribute('aria-pressed', 'false');
-      const st = priorityStyles[v] || {};
-      b.style.background = st.fillColor || '#ebe9e5';
-      b.style.color = st.textColor || '#1a1916';
+      b.style.setProperty('--c', PRIORITY_COLORS[v] || '#44423e');
       b.addEventListener('click', () => setPriority(v === priorityValue ? '' : v));
       box.appendChild(b);
     });
