@@ -36,8 +36,7 @@ body {
   background: #fff; border: 1px solid #e0deda; border-radius: 10px;
   padding: 18px 16px 10px;
 }
-/* Reserve room at the top for the "Who contacted" box so bars never run under it */
-.chart.has-who { padding-top: 58px; }
+/* Top padding is set from JS to the height of the breakdown box, so bars never run under it */
 
 .bars {
   display: grid;
@@ -90,8 +89,16 @@ body {
 }
 .who-item { display: inline-block; margin-right: 16px; white-space: nowrap; color: #000; font-weight: 700; }
 .who-item b { font-weight: 700; color: #000; }
-.who-item .n { font-family: 'DM Mono', monospace; font-size: 12px; color: #000; font-weight: 700; }
+.who-item .n, .fu-item .n { font-family: 'DM Mono', monospace; font-size: 12px; color: #000; font-weight: 700; }
 .who-item.none, .who-item.none b { color: #000; }
+
+.who-section + .who-section { margin-top: 6px; }
+.fu-item { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; white-space: nowrap; }
+.chip {
+  display: inline-block; padding: 1px 7px; border-radius: 4px;
+  font-size: 12px; font-weight: 700; line-height: 1.5;
+}
+.chip.none { background: #ebe9e5; color: #000; }
 </style>
 </head>
 <body>
@@ -106,8 +113,14 @@ body {
 
 <div class="chart" id="chart">
   <div class="who" id="who" style="display:none">
-    <div class="who-title">Who contacted</div>
-    <div id="whoList"></div>
+    <div class="who-section" id="whoSection">
+      <div class="who-title">Who contacted</div>
+      <div id="whoList"></div>
+    </div>
+    <div class="who-section" id="fuSection">
+      <div class="who-title">Follow up required this month</div>
+      <div id="fuList"></div>
+    </div>
   </div>
   <div class="empty" id="empty">Select a month…</div>
   <div class="bars" id="bars" style="display:none"></div>
@@ -129,6 +142,15 @@ body {
   const OUTREACH_TABLE = 'Facility_Outreach';
   const WHO_COL = 'Who_Contacted';
   const MONTH_REF_COL = 'Month';
+  const FOLLOW_UP_COL = 'Follow_Up_Required_This_Month';   // ChoiceList
+
+  // Same options and colours as the Follow Up Required This Month choice column.
+  const FOLLOW_UP_CHOICES = [
+    { key: 'Yes',                      fill: '#2AE028', text: '#000000' },
+    { key: 'No',                       fill: '#E00A17', text: '#FFFFFF' },
+    { key: 'Outcome - Improvement',    fill: '#126E0E', text: '#FFFFFF' },
+    { key: 'Outcome - No Improvement', fill: '#740206', text: '#FFFFFF' },
+  ];
 
   grist.ready({
     requiredAccess: 'read table',
@@ -152,9 +174,15 @@ body {
   });
 
   function setWhoVisible(show) {
-    document.getElementById('who').style.display = show ? '' : 'none';
-    document.getElementById('chart').classList.toggle('has-who', show);
+    const box = document.getElementById('who');
+    const chart = document.getElementById('chart');
+    box.style.display = show ? '' : 'none';
+    chart.style.paddingTop = show ? (box.offsetHeight + 22) + 'px' : '';
   }
+  // Keep the reserved space right if the widget is resized and the lines wrap.
+  window.addEventListener('resize', () => {
+    if (document.getElementById('who').style.display !== 'none') setWhoVisible(true);
+  });
 
   function showEmpty(msg) {
     document.getElementById('empty').textContent = msg;
@@ -230,12 +258,25 @@ body {
 
       const counts = new Map();
       let total = 0, notRecorded = 0;
+      const fuCounts = new Map();
+      let fuNotRecorded = 0;
+      const fuCol = t[FOLLOW_UP_COL];
       for (let i = 0; i < t.id.length; i++) {
         if (t[MONTH_REF_COL][i] !== monthId) continue;
         total++;
         const who = String(t[WHO_COL][i] || '').trim();
-        if (!who) { notRecorded++; continue; }
-        counts.set(who, (counts.get(who) || 0) + 1);
+        if (!who) notRecorded++;
+        else counts.set(who, (counts.get(who) || 0) + 1);
+
+        // ChoiceList cells arrive as ['L', 'Yes', ...]; a row can hold more than one option.
+        if (fuCol) {
+          const raw = fuCol[i];
+          const picks = Array.isArray(raw) ? raw.slice(raw[0] === 'L' ? 1 : 0)
+                       : (raw ? [String(raw)] : []);
+          const uniq = [...new Set(picks.map(v => String(v).trim()).filter(Boolean))];
+          if (!uniq.length) fuNotRecorded++;
+          uniq.forEach(v => fuCounts.set(v, (fuCounts.get(v) || 0) + 1));
+        }
       }
 
       if (total === 0) { setWhoVisible(false); return; }
@@ -250,11 +291,35 @@ body {
       }
 
       list.innerHTML = items.join('');
+
+      // Follow up required this month — options in choice order, then any unexpected values.
+      const fuSection = document.getElementById('fuSection');
+      if (fuCol) {
+        const known = new Set(FOLLOW_UP_CHOICES.map(c => c.key));
+        const fuItems = FOLLOW_UP_CHOICES
+          .filter(c => fuCounts.get(c.key))
+          .map(c => fuChip(c.key, fuCounts.get(c.key), pct, c.fill, c.text));
+        [...fuCounts.entries()]
+          .filter(([k]) => !known.has(k))
+          .forEach(([k, n]) => fuItems.push(fuChip(k, n, pct, '#ebe9e5', '#000')));
+        if (fuNotRecorded) {
+          fuItems.push(`<span class="fu-item"><span class="chip none">Not recorded</span> ${pct(fuNotRecorded)} <span class="n">(${fuNotRecorded})</span></span>`);
+        }
+        document.getElementById('fuList').innerHTML = fuItems.join('');
+        fuSection.style.display = '';
+      } else {
+        fuSection.style.display = 'none';
+      }
+
       setWhoVisible(true);
     } catch (e) {
       setWhoVisible(false);
       console.error('Who contacted:', e);
     }
+  }
+
+  function fuChip(label, n, pct, fill, text) {
+    return `<span class="fu-item"><span class="chip" style="background:${fill};color:${text}">${escapeHtml(label)}</span> ${pct(n)} <span class="n">(${n})</span></span>`;
   }
 
   function escapeHtml(s) {
