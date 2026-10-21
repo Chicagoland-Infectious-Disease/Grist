@@ -71,7 +71,8 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
 <body>
 <div class="panel">
   <h1>Submit a facility issue</h1>
-  <p class="sub">Tickets are reviewed at the weekly meeting and stay open until resolved.</p>
+  <p class="sub">Tickets are reviewed at the weekly meeting and stay open until resolved.
+    Your name is recorded automatically.</p>
 
   <div id="loading" class="loading">Loading facilities…</div>
 
@@ -89,15 +90,9 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
       <textarea id="issue" placeholder="What happened, who's involved at the facility, and what's been tried so far."></textarea>
     </div>
 
-    <div class="row">
-      <div class="field">
-        <label for="category">Category</label>
-        <select id="category"><option value="">Choose…</option></select>
-      </div>
-      <div class="field">
-        <label for="submittedBy">Submitted by</label>
-        <select id="submittedBy"><option value="">Choose…</option></select>
-      </div>
+    <div class="field">
+      <label for="category">Category</label>
+      <select id="category"><option value="">Choose…</option></select>
     </div>
 
     <div class="field">
@@ -121,7 +116,6 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
     Category: ['Coverage / Staffing', 'Communication', 'Clinical / Patient Care', 'EMR Access',
                'Billing', 'Relationship / Satisfaction', 'Other'],
     Priority: ['High', 'Medium', 'Low'],
-    Submitted_By: ['Eva Raupp', 'Elizabeth Akporido'],
   };
   const FALLBACK_COLORS = {
     High:   { fillColor: '#E00A17', textColor: '#FFFFFF' },
@@ -149,15 +143,8 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
 
       const choices = await readChoices();
       fillSelect('category', choices.Category.list);
-      fillSelect('submittedBy', choices.Submitted_By.list);
       priorityStyles = Object.keys(choices.Priority.styles).length ? choices.Priority.styles : FALLBACK_COLORS;
       buildPriority(choices.Priority.list);
-
-      // Remember who last submitted from this browser.
-      try {
-        const last = localStorage.getItem('fiSubmittedBy');
-        if (last && [...$('submittedBy').options].some(o => o.value === last)) $('submittedBy').value = last;
-      } catch (_) {}
 
       $('loading').style.display = 'none';
       $('form').style.display = '';
@@ -250,13 +237,12 @@ button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
     const fields = { Facility_Name: fac.id, Issue: issue };
     if ($('category').value)    fields.Category = $('category').value;
     if (priorityValue)          fields.Priority = priorityValue;
-    if ($('submittedBy').value) fields.Submitted_By = $('submittedBy').value;
+    // Submitted_By is filled by a trigger formula (user.Name) in Grist.
 
     $('submitBtn').disabled = true;
     try {
       const res = await grist.docApi.applyUserActions([['AddRecord', TICKETS_TABLE, null, fields]]);
       const newId = res && res.retValues ? res.retValues[0] : null;
-      try { if ($('submittedBy').value) localStorage.setItem('fiSubmittedBy', $('submittedBy').value); } catch (_) {}
       resetForm();
       setStatus(`Ticket ${newId ? '#' + newId + ' ' : ''}submitted for ${fac.name}.`, 'ok');
       $('facility').focus();
