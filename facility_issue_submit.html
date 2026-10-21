@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Submit a Facility Issue</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: #f1f0ed; color: #1a1916;
+  padding: 14px; min-height: 100vh;
+}
+.panel {
+  background: #fff; border: 1px solid #e0deda; border-radius: 10px;
+  padding: 16px 16px 14px; max-width: 640px;
+}
+h1 { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+.sub { font-size: 13px; color: #6b6964; margin-bottom: 14px; line-height: 1.4; }
+
+.field { margin-bottom: 12px; }
+label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+label .req { color: #c0161f; margin-left: 2px; }
+.hint { font-size: 12px; color: #8a8782; margin-top: 3px; line-height: 1.35; }
+
+input[type=text], select, textarea {
+  width: 100%; font: inherit; font-size: 14px; color: #1a1916;
+  background: #fff; border: 1px solid #cfcbc4; border-radius: 7px;
+  padding: 8px 10px;
+}
+textarea { min-height: 96px; resize: vertical; line-height: 1.4; }
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid #2b7bc0; outline-offset: 0; border-color: #2b7bc0;
+}
+.invalid { border-color: #c0161f !important; background: #fff7f7; }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 460px) { .row { grid-template-columns: 1fr; } }
+
+/* Priority as pill buttons, coloured like the Priority column */
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill {
+  font: inherit; font-size: 13px; font-weight: 600;
+  border: 1px solid #cfcbc4; background: #fff; color: #1a1916;
+  border-radius: 999px; padding: 5px 14px; cursor: pointer;
+}
+.pill:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 1px; }
+.pill[aria-pressed="true"] { border-color: transparent; }
+
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+button.submit {
+  font: inherit; font-size: 14px; font-weight: 700;
+  background: #1a1916; color: #fff; border: none; border-radius: 7px;
+  padding: 9px 18px; cursor: pointer;
+}
+button.submit:disabled { opacity: .5; cursor: default; }
+button.submit:focus-visible { outline: 2px solid #2b7bc0; outline-offset: 2px; }
+.status { font-size: 13px; line-height: 1.4; }
+.status.ok { color: #126e0e; font-weight: 600; }
+.status.err { color: #c0161f; font-weight: 600; }
+
+.loading { font-size: 13px; color: #8a8782; padding: 20px 0; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>Submit a facility issue</h1>
+  <p class="sub">Tickets are reviewed at the weekly meeting and stay open until resolved.</p>
+
+  <div id="loading" class="loading">Loading facilities…</div>
+
+  <form id="form" novalidate style="display:none">
+    <div class="field">
+      <label for="facility">Facility name<span class="req">*</span></label>
+      <input type="text" id="facility" list="facilityList" autocomplete="off"
+             placeholder="Start typing a facility…">
+      <datalist id="facilityList"></datalist>
+      <div class="hint" id="facilityHint">Pick a facility from the list.</div>
+    </div>
+
+    <div class="field">
+      <label for="issue">Issue<span class="req">*</span></label>
+      <textarea id="issue" placeholder="What happened, who's involved at the facility, and what's been tried so far."></textarea>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="category">Category</label>
+        <select id="category"><option value="">Choose…</option></select>
+      </div>
+      <div class="field">
+        <label for="submittedBy">Submitted by</label>
+        <select id="submittedBy"><option value="">Choose…</option></select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label id="priorityLabel">Priority</label>
+      <div class="pills" id="priority" role="group" aria-labelledby="priorityLabel"></div>
+      <div class="hint">High: affecting patient care or the relationship now. Medium: needs attention this month. Low: track only.</div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="submit" id="submitBtn">Submit ticket</button>
+      <span class="status" id="status" role="status" aria-live="polite"></span>
+    </div>
+  </form>
+</div>
+
+<script>
+  const TICKETS_TABLE    = 'Facility_Issues';
+  const FACILITIES_TABLE = 'Facility_Practitioners';
+
+  // Used only if the column settings can't be read.
+  const FALLBACK = {
+    Category: ['Coverage / Staffing', 'Communication', 'Clinical / Patient Care', 'EMR Access',
+               'Billing', 'Relationship / Satisfaction', 'Other'],
+    Priority: ['High', 'Medium', 'Low'],
+    Submitted_By: ['Eva Raupp', 'Elizabeth Akporido'],
+  };
+  const FALLBACK_COLORS = {
+    High:   { fillColor: '#E00A17', textColor: '#FFFFFF' },
+    Medium: { fillColor: '#FCD34D', textColor: '#000000' },
+    Low:    { fillColor: '#D1E7DD', textColor: '#000000' },
+  };
+
+  let facilityByName = new Map();   // lower-cased name -> { id, name }
+  let priorityValue = '';
+  let priorityStyles = FALLBACK_COLORS;
+
+  grist.ready({ requiredAccess: 'full' });
+
+  const $ = id => document.getElementById(id);
+
+  // ---------- load facilities + choice lists from the doc ----------
+  async function load() {
+    try {
+      const fac = await grist.docApi.fetchTable(FACILITIES_TABLE);
+      const rows = fac.id.map((id, i) => ({ id, name: String(fac.Facility_Name[i] || '').trim() }))
+                         .filter(r => r.name)
+                         .sort((a, b) => a.name.localeCompare(b.name));
+      facilityByName = new Map(rows.map(r => [r.name.toLowerCase(), r]));
+      $('facilityList').innerHTML = rows.map(r => `<option value="${esc(r.name)}"></option>`).join('');
+
+      const choices = await readChoices();
+      fillSelect('category', choices.Category.list);
+      fillSelect('submittedBy', choices.Submitted_By.list);
+      priorityStyles = Object.keys(choices.Priority.styles).length ? choices.Priority.styles : FALLBACK_COLORS;
+      buildPriority(choices.Priority.list);
+
+      // Remember who last submitted from this browser.
+      try {
+        const last = localStorage.getItem('fiSubmittedBy');
+        if (last && [...$('submittedBy').options].some(o => o.value === last)) $('submittedBy').value = last;
+      } catch (_) {}
+
+      $('loading').style.display = 'none';
+      $('form').style.display = '';
+    } catch (e) {
+      console.error(e);
+      $('loading').textContent = 'Could not load the form. Check that this widget has Full document access.';
+    }
+  }
+
+  async function readChoices() {
+    const out = {};
+    for (const k of Object.keys(FALLBACK)) out[k] = { list: FALLBACK[k], styles: {} };
+    try {
+      const tables = await grist.docApi.fetchTable('_grist_Tables');
+      const tIdx = tables.tableId.indexOf(TICKETS_TABLE);
+      if (tIdx < 0) return out;
+      const tableRef = tables.id[tIdx];
+      const cols = await grist.docApi.fetchTable('_grist_Tables_column');
+      for (let i = 0; i < cols.id.length; i++) {
+        if (cols.parentId[i] !== tableRef || !(cols.colId[i] in out)) continue;
+        const opts = JSON.parse(cols.widgetOptions[i] || '{}');
+        if (Array.isArray(opts.choices) && opts.choices.length) {
+          out[cols.colId[i]] = { list: opts.choices, styles: opts.choiceOptions || {} };
+        }
+      }
+    } catch (e) { console.warn('Using fallback choices:', e); }
+    return out;
+  }
+
+  function fillSelect(id, list) {
+    const sel = $(id);
+    sel.innerHTML = '<option value="">Choose…</option>' +
+      list.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  }
+
+  function buildPriority(list) {
+    const box = $('priority');
+    box.innerHTML = '';
+    list.forEach(v => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pill'; b.textContent = v;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => setPriority(v === priorityValue ? '' : v));
+      box.appendChild(b);
+    });
+  }
+
+  function setPriority(v) {
+    priorityValue = v;
+    [...$('priority').children].forEach(b => {
+      const on = b.textContent === v;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      const st = priorityStyles[b.textContent] || {};
+      b.style.background = on ? (st.fillColor || '#1a1916') : '#fff';
+      b.style.color      = on ? (st.textColor || '#fff')    : '#1a1916';
+    });
+  }
+
+  // ---------- validation ----------
+  function matchFacility() {
+    return facilityByName.get($('facility').value.trim().toLowerCase()) || null;
+  }
+
+  $('facility').addEventListener('input', () => {
+    $('facility').classList.remove('invalid');
+    $('facilityHint').textContent = 'Pick a facility from the list.';
+    $('facilityHint').style.color = '';
+  });
+  $('issue').addEventListener('input', () => $('issue').classList.remove('invalid'));
+
+  // ---------- submit ----------
+  $('form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    setStatus('');
+
+    const fac = matchFacility();
+    const issue = $('issue').value.trim();
+    let ok = true;
+    if (!fac) {
+      $('facility').classList.add('invalid');
+      $('facilityHint').textContent = $('facility').value.trim()
+        ? 'That name isn’t in the facility list. Choose one of the suggestions.'
+        : 'Facility name is required.';
+      $('facilityHint').style.color = '#c0161f';
+      ok = false;
+    }
+    if (!issue) { $('issue').classList.add('invalid'); ok = false; }
+    if (!ok) { setStatus('Fill in the highlighted fields.', 'err'); (fac ? $('issue') : $('facility')).focus(); return; }
+
+    const fields = { Facility_Name: fac.id, Issue: issue };
+    if ($('category').value)    fields.Category = $('category').value;
+    if (priorityValue)          fields.Priority = priorityValue;
+    if ($('submittedBy').value) fields.Submitted_By = $('submittedBy').value;
+
+    $('submitBtn').disabled = true;
+    try {
+      const res = await grist.docApi.applyUserActions([['AddRecord', TICKETS_TABLE, null, fields]]);
+      const newId = res && res.retValues ? res.retValues[0] : null;
+      try { if ($('submittedBy').value) localStorage.setItem('fiSubmittedBy', $('submittedBy').value); } catch (_) {}
+      resetForm();
+      setStatus(`Ticket ${newId ? '#' + newId + ' ' : ''}submitted for ${fac.name}.`, 'ok');
+      $('facility').focus();
+    } catch (e) {
+      console.error(e);
+      setStatus('Ticket wasn’t saved: ' + (e.message || e) + '. Try again.', 'err');
+    } finally {
+      $('submitBtn').disabled = false;
+    }
+  });
+
+  function resetForm() {
+    $('facility').value = '';
+    $('issue').value = '';
+    $('category').value = '';
+    setPriority('');
+  }
+
+  function setStatus(msg, kind) {
+    const s = $('status');
+    s.textContent = msg;
+    s.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, ch =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+
+  load();
+</script>
+</body>
+</html>
