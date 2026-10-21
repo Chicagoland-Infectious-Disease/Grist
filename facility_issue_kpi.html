@@ -65,9 +65,10 @@ body {
   // Status order and colours match the Status column.
   // "Done" statuses count toward the completion rate.
   const STATUSES = [
-    // color = bar segment; fill/text = chip, same as the Status column choices
+    // color = bar segment (every completed status is green on the bar);
+    // fill/text = legend chip, same as the Status column choices
     { key: 'Resolved',               color: '#126E0E', fill: '#126E0E', text: '#FFFFFF', done: true  },
-    { key: 'Closed - No Resolution', color: 'repeating-linear-gradient(135deg,#5F5E5A 0 6px,#7a7975 6px 10px)', fill: '#5F5E5A', text: '#FFFFFF', done: true  },
+    { key: 'Closed - No Resolution', color: '#126E0E', fill: '#5F5E5A', text: '#FFFFFF', done: true  },
     { key: 'In Progress',            color: '#F2C94C', fill: '#FFF1C2', text: '#000000', done: false },
     { key: 'Open',                   color: '#F4A3A0', fill: '#FDE2E1', text: '#000000', done: false },
   ];
