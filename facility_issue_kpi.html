@@ -34,12 +34,14 @@ body {
 .seg { height: 100%; transition: width .3s ease; }
 
 .legend {
-  display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px;
+  display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 12px;
   font-size: 13px;
 }
-.item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
-.item .n { font-family: 'DM Mono', monospace; font-size: 12px; color: #44423e; }
+.item {
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  padding: 4px 10px; border-radius: 6px; font-weight: 600;
+}
+.item .n { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; opacity: .85; }
 
 .empty { font-size: 13px; color: #8a8782; padding: 8px 0; }
 @media (prefers-reduced-motion: reduce) { .seg { transition: none; } }
@@ -63,10 +65,11 @@ body {
   // Status order and colours match the Status column.
   // "Done" statuses count toward the completion rate.
   const STATUSES = [
-    { key: 'Resolved',               color: '#126E0E', done: true  },
-    { key: 'Closed - No Resolution', color: '#5F5E5A', done: true  },
-    { key: 'In Progress',            color: '#F2C94C', done: false },
-    { key: 'Open',                   color: '#F4A3A0', done: false },
+    // color = bar segment; fill/text = chip, same as the Status column choices
+    { key: 'Resolved',               color: '#126E0E', fill: '#126E0E', text: '#FFFFFF', done: true  },
+    { key: 'Closed - No Resolution', color: '#5F5E5A', fill: '#5F5E5A', text: '#FFFFFF', done: true  },
+    { key: 'In Progress',            color: '#F2C94C', fill: '#FFF1C2', text: '#000000', done: false },
+    { key: 'Open',                   color: '#F4A3A0', fill: '#FDE2E1', text: '#000000', done: false },
   ];
 
   grist.ready({ requiredAccess: 'read table' });
@@ -103,7 +106,7 @@ body {
       `<b>${total - done}</b> still unresolved`;
 
     const parts = STATUSES.map(s => ({ ...s, n: counts[s.key] }));
-    if (other) parts.push({ key: 'No status', color: '#cfcac3', n: other });
+    if (other) parts.push({ key: 'No status', color: '#cfcac3', fill: '#ebe9e5', text: '#000000', n: other });
 
     bar.innerHTML = parts.filter(p => p.n)
       .map(p => `<div class="seg" style="width:${p.n / total * 100}%;background:${p.color}" title="${p.key}: ${p.n}"></div>`)
@@ -111,7 +114,7 @@ body {
     bar.setAttribute('aria-label', parts.map(p => `${p.key} ${p.n}`).join(', '));
 
     legend.innerHTML = parts
-      .map(p => `<span class="item"><span class="dot" style="background:${p.color}"></span>${p.key} <span class="n">${p.n} · ${Math.round(p.n / total * 100)}%</span></span>`)
+      .map(p => `<span class="item" style="background:${p.fill};color:${p.text}">${p.key} <span class="n">${p.n} · ${Math.round(p.n / total * 100)}%</span></span>`)
       .join('');
   }
 </script>
