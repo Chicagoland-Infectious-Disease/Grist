@@ -23,14 +23,16 @@ body {
 }
 
 /* Header */
-.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.fac { font-size: 22px; font-weight: 700; line-height: 1.2; }
-.title-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.fac { font-size: clamp(16px, 3.6vw, 22px); font-weight: 700; line-height: 1.2; }
+.title-line { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+.title-line .fac { flex: 0 1 auto; min-width: 0; }      /* long names wrap inside their own box */
 .status {
-  display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px;
+  flex: none; display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px;
   border-radius: 999px; white-space: nowrap;
 }
-.pracs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pracs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.prac-label { margin: 0 4px 0 0; white-space: nowrap; }
 .prac { background: #eef3f9; color: #1d3d5c; border-radius: 6px; padding: 3px 9px; font-size: 13px; font-weight: 600; }
 
 /* KPI tiles */
@@ -190,8 +192,8 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
             ${statusHtml}
           </div>
         </div>
-        <div class="section-title" style="margin:12px 0 0">Credentialed practitioners</div>
-        <div class="pracs">${practitioners.length
+        <div class="pracs">
+          <span class="section-title prac-label">Credentialed practitioners</span>${practitioners.length
           ? practitioners.map(n => `<span class="prac">${esc(n)}</span>`).join('')
           : '<span class="muted">None listed in SNF Coverage</span>'}</div>
       </div>
