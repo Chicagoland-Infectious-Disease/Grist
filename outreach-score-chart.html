@@ -75,7 +75,7 @@ body {
   font-family: 'DM Mono', monospace; font-size: 13px;
 }
 
-/* Who contacted breakdown — top-left corner of the chart's white space */
+/* Follow-up breakdown — top-left corner of the chart's white space */
 .who {
   position: absolute;
   top: 12px; left: 16px; right: 16px;
@@ -100,7 +100,6 @@ body {
 }
 .who-section + .who-section { margin-top: 6px; }
 /* Each breakdown gets its own tint so the two lines are easy to tell apart */
-#whoSection { background: #F1EAFD; border-left-color: #8B5CF6; }
 #fuSection  { background: #E6F2FB; border-left-color: #2B7BC0; }
 .fu-item { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; white-space: nowrap; }
 .chip {
@@ -122,10 +121,6 @@ body {
 
 <div class="chart" id="chart">
   <div class="who" id="who" style="display:none">
-    <div class="who-section" id="whoSection">
-      <div class="who-title">Who contacted</div>
-      <div id="whoList"></div>
-    </div>
     <div class="who-section" id="fuSection">
       <div class="who-title">Follow up required this month</div>
       <div id="fuList"></div>
@@ -147,9 +142,8 @@ body {
     { key: 'NoScore',   label: 'Contacted, no score', color: '#cfcac3', optional: true },
   ];
 
-  // Outreach rows live in this table; each has a Month reference and a Who_Contacted choice.
+  // Outreach rows live in this table; each has a Month reference and a Follow Up choice list.
   const OUTREACH_TABLE = 'Facility_Outreach';
-  const WHO_COL = 'Who_Contacted';
   const MONTH_REF_COL = 'Month';
   const FOLLOW_UP_COL = 'Follow_Up_Required_This_Month';   // ChoiceList
 
@@ -255,28 +249,21 @@ body {
     labels.style.display = '';
   }
 
-  // Share of the selected month's outreach rows by who made the contact.
-  // Blank Who_Contacted is shown as "Not recorded" so gaps stay visible.
+  // Follow up required this month breakdown for the selected month's outreach rows.
   let whoRequest = 0;
   async function renderWho(monthId) {
-    const list = document.getElementById('whoList');
     const myRequest = ++whoRequest;   // ignore stale responses if the user clicks quickly
     try {
       const t = await grist.docApi.fetchTable(OUTREACH_TABLE);
       if (myRequest !== whoRequest) return;
 
-      const counts = new Map();
-      let total = 0, notRecorded = 0;
+      let total = 0;
       const fuCounts = new Map();
       let fuNotRecorded = 0;
       const fuCol = t[FOLLOW_UP_COL];
       for (let i = 0; i < t.id.length; i++) {
         if (t[MONTH_REF_COL][i] !== monthId) continue;
         total++;
-        const who = String(t[WHO_COL][i] || '').trim();
-        if (!who) notRecorded++;
-        else counts.set(who, (counts.get(who) || 0) + 1);
-
         // ChoiceList cells arrive as ['L', 'Yes', ...]; a row can hold more than one option.
         if (fuCol) {
           const raw = fuCol[i];
@@ -291,16 +278,6 @@ body {
       if (total === 0) { setWhoVisible(false); return; }
 
       const pct = n => Math.round(n / total * 100) + '%';
-      const items = [...counts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(([who, n]) =>
-          `<span class="who-item"><b>${escapeHtml(who)}</b> ${pct(n)} <span class="n">(${n})</span></span>`);
-      if (notRecorded) {
-        items.push(`<span class="who-item none"><b>Not recorded</b> ${pct(notRecorded)} <span class="n">(${notRecorded})</span></span>`);
-      }
-
-      list.innerHTML = items.join('');
-
       // Follow up required this month — options in choice order, then any unexpected values.
       const fuSection = document.getElementById('fuSection');
       if (fuCol) {
@@ -317,13 +294,14 @@ body {
         document.getElementById('fuList').innerHTML = fuItems.join('');
         fuSection.style.display = '';
       } else {
-        fuSection.style.display = 'none';
+        setWhoVisible(false);   // no follow-up column: hide the box entirely
+        return;
       }
 
       setWhoVisible(true);
     } catch (e) {
       setWhoVisible(false);
-      console.error('Who contacted:', e);
+      console.error('Follow up breakdown:', e);
     }
   }
 
