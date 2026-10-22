@@ -25,9 +25,10 @@ body {
 /* Header */
 .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .fac { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.title-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .status {
   display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px;
-  border-radius: 999px; margin-top: 6px;
+  border-radius: 999px; white-space: nowrap;
 }
 .pracs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .prac { background: #eef3f9; color: #1d3d5c; border-radius: 6px; padding: 3px 9px; font-size: 13px; font-weight: 600; }
@@ -184,7 +185,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     document.getElementById('app').innerHTML = `
       <div class="card">
         <div class="head">
-          <div>
+          <div class="title-line">
             <div class="fac">${esc(name)}</div>
             ${statusHtml}
           </div>
@@ -206,7 +207,8 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
         <div class="chart-head">
           <div class="section-title" style="margin:0">Weekly encounters · last 52 weeks</div>
           <div class="legend">
-            <span><i style="border-color:#2b7bc0"></i>Encounters</span>
+            <span><i style="border-color:#9aa7b4"></i>2025</span>
+            <span><i style="border-color:#2b7bc0"></i>2026</span>
             <span><i style="border-color:#126E0E;border-top-style:dashed"></i>2026 avg</span>
             <span><i style="border-color:#8a8782;border-top-style:dotted"></i>Overall avg</span>
           </div>
@@ -257,8 +259,33 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     });
 
     const full = pts.slice(0, -1), lastP = pts[pts.length - 1];
-    const line = full.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.n)}`).join(' ');
-    const area = full.length ? `${line} L${x(full.length - 1)},${y(0)} L${x(0)},${y(0)} Z` : '';
+    const yearOf = p => new Date(p.start * 1000).getUTCFullYear();
+
+    // Split the line where the year changes: first week whose Sunday is in the newer year.
+    const lastYear = yearOf(lastP);
+    let split = pts.findIndex(p => yearOf(p) === lastYear);   // index of first newer-year week
+    if (split < 0) split = 0;
+
+    const pathFrom = (a, b) => full.slice(a, b + 1)
+      .map((p, k) => `${k ? 'L' : 'M'}${x(a + k)},${y(p.n)}`).join(' ');
+    const areaFrom = (a, b) => {
+      b = Math.min(b, full.length - 1);
+      if (b < a) return '';
+      return `${pathFrom(a, b)} L${x(b)},${y(0)} L${x(a)},${y(0)} Z`;
+    };
+    // Older year runs up to and including the first newer-year point so the line stays joined.
+    const oldEnd = Math.min(split, full.length - 1);
+    const oldLine  = split > 0 ? pathFrom(0, oldEnd) : '';
+    const newLine  = split <= full.length - 1 ? pathFrom(split, full.length - 1) : '';
+    const oldArea  = split > 0 ? areaFrom(0, oldEnd) : '';
+    const newArea  = areaFrom(split, full.length - 1);
+
+    // Vertical divider + year labels
+    const divX = split > 0 ? (x(split - 1) + x(split)) / 2 : null;
+    const yearMarks = divX == null ? '' : `
+        <line x1="${divX}" x2="${divX}" y1="${Tp}" y2="${H - B}" stroke="#1a1916" stroke-width="1" stroke-dasharray="4 3" opacity=".45"/>
+        <text x="${divX - 6}" y="${Tp + 10}" text-anchor="end" font-size="11" font-weight="700" fill="#7d8996">${lastYear - 1}</text>
+        <text x="${divX + 6}" y="${Tp + 10}" text-anchor="start" font-size="11" font-weight="700" fill="#2b7bc0">${lastYear}</text>`;
     const partial = full.length
       ? `<line x1="${x(full.length - 1)}" y1="${y(full[full.length - 1].n)}" x2="${x(pts.length - 1)}" y2="${y(lastP.n)}" stroke="#2b7bc0" stroke-width="2" stroke-dasharray="3 3" opacity=".6"/>`
       : '';
@@ -267,10 +294,13 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     box.innerHTML = `
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Weekly encounters for the last 52 weeks">
         ${grid}${ticks}
-        <path d="${area}" fill="#2b7bc0" opacity=".08"/>
+        <path d="${oldArea}" fill="#9aa7b4" opacity=".14"/>
+        <path d="${newArea}" fill="#2b7bc0" opacity=".10"/>
+        ${yearMarks}
         ${ref(avgAll, '#8a8782', '2 3')}
         ${ref(avg26, '#126E0E', '6 4')}
-        <path d="${line}" fill="none" stroke="#2b7bc0" stroke-width="2" stroke-linejoin="round"/>
+        <path d="${oldLine}" fill="none" stroke="#9aa7b4" stroke-width="2" stroke-linejoin="round"/>
+        <path d="${newLine}" fill="none" stroke="#2b7bc0" stroke-width="2.2" stroke-linejoin="round"/>
         ${partial}
         <circle cx="${x(pts.length - 1)}" cy="${y(lastP.n)}" r="3" fill="#fff" stroke="#2b7bc0" stroke-width="1.5"/>
         <line id="hl" y1="${Tp}" y2="${H - B}" stroke="#1a1916" stroke-width="1" opacity="0"/>
