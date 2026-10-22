@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facility Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: #f1f0ed; color: #1a1916;
+  padding: 14px; font-size: 14px;
+}
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 12px; }
+.card { background: #fff; border: 1px solid #e0deda; border-radius: 10px; padding: 14px 16px; }
+.muted { color: #6b6964; }
+.mono { font-family: 'DM Mono', monospace; }
+.section-title {
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .07em; color: #8a8782; margin-bottom: 8px;
+}
+
+/* Header */
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.fac { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.status {
+  display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px;
+  border-radius: 999px; margin-top: 6px;
+}
+.pracs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.prac { background: #eef3f9; color: #1d3d5c; border-radius: 6px; padding: 3px 9px; font-size: 13px; font-weight: 600; }
+
+/* KPI tiles */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 620px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+.kpi { background: #fff; border: 1px solid #e0deda; border-radius: 10px; padding: 12px 14px; }
+.kpi .lbl { font-size: 12px; color: #6b6964; font-weight: 600; }
+.kpi .val { font-size: 28px; font-weight: 700; line-height: 1.1; margin-top: 4px; }
+.kpi .sub { font-size: 12px; color: #8a8782; margin-top: 3px; }
+.kpi.trend .val { font-size: 22px; }
+
+/* Chart */
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: #6b6964; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
+.chart { position: relative; margin-top: 6px; }
+svg { display: block; width: 100%; height: 220px; overflow: visible; }
+.tip {
+  position: absolute; pointer-events: none; background: #1a1916; color: #fff;
+  font-size: 12px; padding: 5px 8px; border-radius: 6px; white-space: nowrap;
+  transform: translate(-50%, -110%); display: none;
+}
+
+/* Lower grid */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+.rows { display: grid; gap: 7px; }
+.row { display: flex; justify-content: space-between; gap: 10px; }
+.row b { font-weight: 700; text-align: right; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+.ticket { border-left: 3px solid #e0deda; padding: 4px 0 4px 10px; }
+.ticket + .ticket { margin-top: 8px; }
+.ticket .t1 { font-size: 13px; font-weight: 600; }
+.ticket .t2 { font-size: 12px; color: #6b6964; margin-top: 2px; }
+
+.empty { padding: 40px 10px; text-align: center; color: #8a8782; }
+.note { font-size: 11px; color: #8a8782; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="card empty">Select a facility in the outreach table…</div></div>
+
+<script>
+  // Tables in the Marketing Operations doc
+  const T = {
+    outreach:  'Facility_Outreach',
+    pracs:     'Facility_Practitioners',
+    trend:     'Weekly_Facility_Trend',
+    history:   'Facility_Weekly_History',
+    issues:    'Facility_Issues',
+  };
+
+  const STATUS_COLORS = {
+    'Active':             ['#126E0E', '#fff'],
+    'Open':               ['#157AFB', '#fff'],
+    'Temporary Coverage': ['#B45309', '#fff'],
+    'Lost':               ['#B3000C', '#fff'],
+  };
+  const SCORE_COLORS = {
+    '1 - Poor': ['#E00A17', '#fff'], '2 - Fair': ['#FD8182', '#000'], '3 - Good': ['#FECBCC', '#000'],
+    '4 - Very Good': ['#7ED321', '#000'], '5 - Excellent': ['#126E0E', '#fff'],
+  };
+  const PRIORITY_COLORS = { High: '#B3000C', Medium: '#B45309', Low: '#1B6E2A' };
+
+  grist.ready({ requiredAccess: 'full' });
+
+  // ---------- data cache (refreshed at most once a minute) ----------
+  let cache = null, cacheAt = 0, loading = null;
+  async function loadAll() {
+    if (cache && Date.now() - cacheAt < 60000) return cache;
+    if (loading) return loading;
+    loading = (async () => {
+      const [outreach, pracs, trend, history, issues] = await Promise.all(
+        [T.outreach, T.pracs, T.trend, T.history, T.issues].map(t =>
+          grist.docApi.fetchTable(t).catch(() => null)));
+      cache = { outreach, pracs, trend, history, issues };
+      cacheAt = Date.now();
+      loading = null;
+      return cache;
+    })();
+    return loading;
+  }
+
+  let current = '';
+  grist.onRecord(async rec => {
+    const name = rec && String(rec.Facility_Name || '').trim();
+    if (!name) { renderEmpty('Select a facility in the outreach table…'); return; }
+    current = name;
+    try {
+      const data = await loadAll();
+      if (current !== name) return;           // user clicked another row meanwhile
+      render(name, data);
+    } catch (e) {
+      console.error(e);
+      renderEmpty('Could not load facility data. Check that this widget has Full document access.');
+    }
+  });
+
+  // ---------- helpers ----------
+  const norm = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+                      .replace(/[^a-zA-Z0-9]+/g, ' ').trim().toLowerCase();
+  const list = v => Array.isArray(v) ? v.slice(v[0] === 'L' ? 1 : 0) : (v ? [v] : []);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt1 = n => (n == null || isNaN(n)) ? '—' : (Math.round(n * 10) / 10).toString();
+  const dateOf = v => (v == null || v === '') ? null : new Date(Number(v) * 1000);
+  const mdY = d => d ? `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${d.getUTCFullYear()}` : '—';
+  const pill = (text, [bg, fg]) => `<span class="pill" style="background:${bg};color:${fg}">${esc(text)}</span>`;
+
+  function rowsWhere(tbl, col, key) {
+    if (!tbl || !tbl[col]) return [];
+    const out = [];
+    for (let i = 0; i < tbl.id.length; i++) if (norm(tbl[col][i]) === key) out.push(i);
+    return out;
+  }
+
+  function renderEmpty(msg) {
+    document.getElementById('app').innerHTML = `<div class="card empty">${esc(msg)}</div>`;
+  }
+
+  // ---------- main render ----------
+  function render(name, d) {
+    const key = norm(name);
+
+    // Practitioners + status
+    const p = rowsWhere(d.pracs, 'Facility_Name', key)[0];
+    const practitioners = p != null ? list(d.pracs.Practitioner_Name[p]) : [];
+    const status = p != null ? (d.pracs.Facility_Status[p] || '') : '';
+
+    // Trend row
+    const t = rowsWhere(d.trend, 'Facility_Name', key)[0];
+    const g = c => (t != null && d.trend[c]) ? d.trend[c][t] : null;
+    const avgAll = g('Weekly_Avg_All'), avg26 = g('Weekly_Avg_2026'), roll4 = g('Prior_4_Avg');
+    const trendCat = g('Trend_Category') || '';
+    let deltaTxt = '—';
+    if (avg26) {
+      const delta = ((roll4 || 0) - avg26) / avg26 * 100;
+      deltaTxt = (delta > 0 ? '▲ +' : delta < 0 ? '▼ ' : '— ') + Math.round(delta) + '%';
+    }
+
+    // History (52 weeks), oldest first
+    const hIdx = rowsWhere(d.history, 'Facility_Name', key)
+      .map(i => ({ start: Number(d.history.Week_Start[i]), label: d.history.Week_Label[i], n: Number(d.history.Encounters[i]) || 0 }))
+      .sort((a, b) => a.start - b.start);
+
+    // Outreach
+    const o = rowsWhere(d.outreach, 'Facility_Name', key).map(i => ({
+      date: Number(d.outreach.Date_Contacted[i]) || 0,
+      score: d.outreach.Score ? d.outreach.Score[i] : '',
+      who: d.outreach.Who_Contacted ? d.outreach.Who_Contacted[i] : '',
+      contact: d.outreach.Who_was_Contacted ? d.outreach.Who_was_Contacted[i] : '',
+      follow: d.outreach.Follow_Up_Required_This_Month ? list(d.outreach.Follow_Up_Required_This_Month[i]) : [],
+    })).sort((a, b) => b.date - a.date);
+    const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1) / 1000;
+    const thisYear = o.filter(x => x.date >= yearStart);
+    const scored = thisYear.map(x => parseInt(x.score, 10)).filter(n => !isNaN(n));
+    const avgScore = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null;
+    const followOpen = thisYear.filter(x => x.follow.includes('Yes')).length;
+    const last = o[0];
+
+    // Issue tickets (open / in progress)
+    const tk = [];
+    if (d.issues) {
+      const nameCol = d.issues.Facility_Text ? 'Facility_Text' : null;
+      if (nameCol) for (let i = 0; i < d.issues.id.length; i++) {
+        if (norm(d.issues[nameCol][i]) !== key) continue;
+        const st = d.issues.Status[i];
+        if (st !== 'Open' && st !== 'In Progress') continue;
+        tk.push({ id: d.issues.id[i], issue: d.issues.Issue[i], st, pr: d.issues.Priority[i], opened: d.issues.Date_Opened[i] });
+      }
+      tk.sort((a, b) => (Number(b.opened) || 0) - (Number(a.opened) || 0));
+    }
+
+    const statusHtml = status ? `<span class="status" style="background:${(STATUS_COLORS[status] || ['#ebe9e5'])[0]};color:${(STATUS_COLORS[status] || [, '#000'])[1]}">${esc(status)}</span>` : '';
+    const trendColor = trendCat === 'Trending Down' ? '#B3000C' : trendCat === 'Trending Up' ? '#126E0E' : '#1a1916';
+
+    document.getElementById('app').innerHTML = `
+      <div class="card">
+        <div class="head">
+          <div>
+            <div class="fac">${esc(name)}</div>
+            ${statusHtml}
+          </div>
+        </div>
+        <div class="section-title" style="margin:12px 0 0">Credentialed practitioners</div>
+        <div class="pracs">${practitioners.length
+          ? practitioners.map(n => `<span class="prac">${esc(n)}</span>`).join('')
+          : '<span class="muted">None listed in SNF Coverage</span>'}</div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="lbl">Overall weekly avg</div><div class="val">${fmt1(avgAll)}</div><div class="sub">all years</div></div>
+        <div class="kpi"><div class="lbl">2026 weekly avg</div><div class="val">${fmt1(avg26)}</div><div class="sub">year to date</div></div>
+        <div class="kpi"><div class="lbl">4-week rolling avg</div><div class="val">${fmt1(roll4)}</div><div class="sub">Week −5 to −2</div></div>
+        <div class="kpi trend"><div class="lbl">Trend vs 2026</div><div class="val" style="color:${trendColor}">${esc(deltaTxt)}</div><div class="sub">${esc(trendCat || 'No baseline')}</div></div>
+      </div>
+
+      <div class="card">
+        <div class="chart-head">
+          <div class="section-title" style="margin:0">Weekly encounters · last 52 weeks</div>
+          <div class="legend">
+            <span><i style="border-color:#2b7bc0"></i>Encounters</span>
+            <span><i style="border-color:#126E0E;border-top-style:dashed"></i>2026 avg</span>
+            <span><i style="border-color:#8a8782;border-top-style:dotted"></i>Overall avg</span>
+          </div>
+        </div>
+        <div class="chart" id="chart"></div>
+        <div class="note">The current week is partial, and the most recent weeks usually lag about two weeks.</div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="section-title">Outreach</div>
+          <div class="rows">
+            <div class="row"><span class="muted">Last contacted</span><b>${last ? mdY(dateOf(last.date)) : '—'}</b></div>
+            <div class="row"><span class="muted">Last score</span><b>${last && last.score ? pill(last.score, SCORE_COLORS[last.score] || ['#ebe9e5', '#000']) : '—'}</b></div>
+            <div class="row"><span class="muted">Contacted by</span><b>${esc(last && last.who || '—')}</b></div>
+            <div class="row"><span class="muted">Spoke with</span><b>${esc(last && last.contact || '—')}</b></div>
+            <div class="row"><span class="muted">Contacts this year</span><b>${thisYear.length}</b></div>
+            <div class="row"><span class="muted">Avg score this year</span><b>${avgScore == null ? '—' : avgScore.toFixed(1) + ' / 5'}</b></div>
+            <div class="row"><span class="muted">Follow-ups flagged this year</span><b>${followOpen}</b></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">Open issue tickets (${tk.length})</div>
+          ${tk.length ? tk.slice(0, 4).map(x => `
+            <div class="ticket" style="border-left-color:${PRIORITY_COLORS[x.pr] || '#e0deda'}">
+              <div class="t1">#${x.id} · ${esc(String(x.issue || '').slice(0, 90))}${String(x.issue || '').length > 90 ? '…' : ''}</div>
+              <div class="t2">${esc(x.st)}${x.pr ? ' · ' + esc(x.pr) : ''} · opened ${mdY(dateOf(x.opened))}</div>
+            </div>`).join('') + (tk.length > 4 ? `<div class="note" style="margin-top:8px">+${tk.length - 4} more on the Facility Issues page</div>` : '')
+          : '<div class="muted">No open tickets.</div>'}
+        </div>
+      </div>`;
+
+    drawChart(hIdx, avg26, avgAll);
+  }
+
+  // ---------- chart (plain SVG, no libraries) ----------
+  function drawChart(pts, avg26, avgAll) {
+    const box = document.getElementById('chart');
+    if (!pts.length) { box.innerHTML = '<div class="empty" style="padding:30px">No weekly history for this facility yet.</div>'; return; }
+
+    const W = Math.max(box.clientWidth, 300), H = 220, L = 34, R = 10, Tp = 10, B = 26;
+    const max = Math.max(1, avg26 || 0, avgAll || 0, ...pts.map(p => p.n));
+    const yMax = Math.ceil(max * 1.15);
+    const x = i => L + (pts.length === 1 ? 0 : i * (W - L - R) / (pts.length - 1));
+    const y = v => Tp + (H - Tp - B) * (1 - v / yMax);
+
+    const grid = [0, .25, .5, .75, 1].map(f => {
+      const v = Math.round(yMax * f), yy = y(v);
+      return `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#eeece8"/>
+              <text x="${L - 6}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#8a8782" font-family="DM Mono">${v}</text>`;
+    }).join('');
+
+    // Month ticks along the bottom
+    let ticks = '', lastMonth = -1;
+    pts.forEach((p, i) => {
+      const d = new Date(p.start * 1000), m = d.getUTCMonth();
+      // label a month only at its first week, so a partial month at the left edge doesn't crowd the next label
+      if (m !== lastMonth && d.getUTCDate() <= 7) {
+        lastMonth = m;
+        ticks += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#8a8782">${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}</text>`;
+      }
+    });
+
+    const full = pts.slice(0, -1), lastP = pts[pts.length - 1];
+    const line = full.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.n)}`).join(' ');
+    const area = full.length ? `${line} L${x(full.length - 1)},${y(0)} L${x(0)},${y(0)} Z` : '';
+    const partial = full.length
+      ? `<line x1="${x(full.length - 1)}" y1="${y(full[full.length - 1].n)}" x2="${x(pts.length - 1)}" y2="${y(lastP.n)}" stroke="#2b7bc0" stroke-width="2" stroke-dasharray="3 3" opacity=".6"/>`
+      : '';
+    const ref = (v, color, dash) => v ? `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="${dash}"/>` : '';
+
+    box.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Weekly encounters for the last 52 weeks">
+        ${grid}${ticks}
+        <path d="${area}" fill="#2b7bc0" opacity=".08"/>
+        ${ref(avgAll, '#8a8782', '2 3')}
+        ${ref(avg26, '#126E0E', '6 4')}
+        <path d="${line}" fill="none" stroke="#2b7bc0" stroke-width="2" stroke-linejoin="round"/>
+        ${partial}
+        <circle cx="${x(pts.length - 1)}" cy="${y(lastP.n)}" r="3" fill="#fff" stroke="#2b7bc0" stroke-width="1.5"/>
+        <line id="hl" y1="${Tp}" y2="${H - B}" stroke="#1a1916" stroke-width="1" opacity="0"/>
+        <rect id="hit" x="${L}" y="${Tp}" width="${W - L - R}" height="${H - Tp - B}" fill="transparent"/>
+      </svg>
+      <div class="tip" id="tip"></div>`;
+
+    const svg = box.querySelector('svg'), tip = box.querySelector('#tip'), hl = box.querySelector('#hl');
+    const hit = box.querySelector('#hit');
+    hit.addEventListener('mousemove', ev => {
+      const r = svg.getBoundingClientRect();
+      const px = (ev.clientX - r.left) * (W / r.width);
+      const i = Math.max(0, Math.min(pts.length - 1, Math.round((px - L) / ((W - L - R) / Math.max(1, pts.length - 1)))));
+      const p = pts[i];
+      hl.setAttribute('x1', x(i)); hl.setAttribute('x2', x(i)); hl.setAttribute('opacity', '.25');
+      tip.style.display = 'block';
+      tip.style.left = (x(i) * r.width / W) + 'px';
+      tip.style.top = (y(p.n) * r.height / H) + 'px';
+      tip.textContent = `${p.label}: ${p.n}${i === pts.length - 1 ? ' (partial week)' : ''}`;
+    });
+    hit.addEventListener('mouseleave', () => { tip.style.display = 'none'; hl.setAttribute('opacity', '0'); });
+  }
+
+  // Redraw the chart at the new width if the popup / panel is resized.
+  let rz;
+  window.addEventListener('resize', () => {
+    clearTimeout(rz);
+    rz = setTimeout(() => { if (cache && current) render(current, cache); }, 150);
+  });
+</script>
+</body>
+</html>
