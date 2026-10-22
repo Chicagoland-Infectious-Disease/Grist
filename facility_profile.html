@@ -26,7 +26,8 @@ body {
 .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .fac { font-size: clamp(16px, 3.6vw, 22px); font-weight: 700; line-height: 1.2; }
 .title-line { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
-.title-line .fac { flex: 0 1 auto; min-width: 0; }      /* long names wrap inside their own box */
+.title-line .fac { flex: 0 1 auto; min-width: 0; }
+.status.rounding { background: #eef3f9; color: #1d3d5c; border: 1px solid #c9d8e8; }      /* long names wrap inside their own box */
 .status {
   flex: none; display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px;
   border-radius: 999px; white-space: nowrap;
@@ -153,6 +154,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     const p = rowsWhere(d.pracs, 'Facility_Name', key)[0];
     const practitioners = p != null ? list(d.pracs.Practitioner_Name[p]) : [];
     const status = p != null ? (d.pracs.Facility_Status[p] || '') : '';
+    const rounding = (p != null && d.pracs.Rounding_Frequency) ? (d.pracs.Rounding_Frequency[p] || '') : '';
 
     // Trend row
     const t = rowsWhere(d.trend, 'Facility_Name', key)[0];
@@ -196,6 +198,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
           <div class="title-line">
             <div class="fac">${esc(name)}</div>
             ${statusHtml}
+            ${rounding ? `<span class="status rounding" title="Rounding frequency">⟳ ${esc(rounding)}</span>` : ''}
           </div>
         </div>
         <div class="pracs">
