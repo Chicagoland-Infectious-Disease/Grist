@@ -127,7 +127,9 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
   const list = v => Array.isArray(v) ? v.slice(v[0] === 'L' ? 1 : 0) : (v ? [v] : []);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmt1 = n => (n == null || isNaN(n)) ? '—' : (Math.round(n * 10) / 10).toString();
+  // Whole numbers everywhere, rounded half up -- same as the Weekly Facility Trend table.
+  const r0 = n => (n == null || isNaN(n)) ? null : Math.floor(Number(n) + 0.5);
+  const fmt1 = n => r0(n) == null ? '—' : String(r0(n));
   const dateOf = v => (v == null || v === '') ? null : new Date(Number(v) * 1000);
   const mdY = d => d ? `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${d.getUTCFullYear()}` : '—';
   const pill = (text, [bg, fg]) => `<span class="pill" style="background:${bg};color:${fg}">${esc(text)}</span>`;
@@ -156,11 +158,15 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     const t = rowsWhere(d.trend, 'Facility_Name', key)[0];
     const g = c => (t != null && d.trend[c]) ? d.trend[c][t] : null;
     const avgAll = g('Weekly_Avg_All'), avg26 = g('Weekly_Avg_2026'), roll4 = g('Prior_4_Avg');
-    const trendCat = g('Trend_Category') || '';
+    // Category from the same rounded numbers as the tiles (matches the Trend Category column).
+    let trendCat = '';
     let deltaTxt = '—';
-    if (avg26) {
-      const delta = ((roll4 || 0) - avg26) / avg26 * 100;
-      deltaTxt = (delta > 0 ? '▲ +' : delta < 0 ? '▼ ' : '— ') + Math.round(delta) + '%';
+    const base0 = r0(avg26) || 0, recent0 = r0(roll4) || 0;
+    if (base0) {
+      // Compare the same whole numbers shown in the tiles, so 2 vs 2 reads "at avg".
+      const delta = (recent0 - base0) / base0 * 100;
+      deltaTxt = delta > 0 ? '▲ +' + Math.round(delta) + '%' : delta < 0 ? '▼ ' + Math.round(delta) + '%' : '— at avg';
+      trendCat = delta > 0 ? 'Trending Up' : delta < 0 ? 'Trending Down' : 'At Average';
     }
 
     // History (52 weeks), oldest first
