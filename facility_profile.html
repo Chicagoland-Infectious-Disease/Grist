@@ -15,11 +15,11 @@ body {
 }
 .wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 12px; }
 .card { background: #fff; border: 1px solid #e0deda; border-radius: 10px; padding: 14px 16px; }
-.muted { color: #6b6964; }
+.muted { color: #3f3d39; }
 .mono { font-family: 'DM Mono', monospace; }
 .section-title {
   font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
-  text-transform: uppercase; letter-spacing: .07em; color: #8a8782; margin-bottom: 8px;
+  text-transform: uppercase; letter-spacing: .07em; color: #3f3d39; margin-bottom: 8px;
 }
 
 /* Header */
@@ -39,14 +39,14 @@ body {
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 @media (max-width: 620px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
 .kpi { background: #fff; border: 1px solid #e0deda; border-radius: 10px; padding: 12px 14px; }
-.kpi .lbl { font-size: 12px; color: #6b6964; font-weight: 600; }
+.kpi .lbl { font-size: 12px; color: #3f3d39; font-weight: 600; }
 .kpi .val { font-size: 28px; font-weight: 700; line-height: 1.1; margin-top: 4px; }
-.kpi .sub { font-size: 12px; color: #8a8782; margin-top: 3px; }
+.kpi .sub { font-size: 12px; color: #3f3d39; margin-top: 3px; }
 .kpi.trend .val { font-size: 22px; }
 
 /* Chart */
 .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.legend { display: flex; gap: 14px; font-size: 12px; color: #6b6964; flex-wrap: wrap; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: #3f3d39; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
 .chart { position: relative; margin-top: 6px; }
 svg { display: block; width: 100%; height: 220px; overflow: visible; }
@@ -61,10 +61,10 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
 .ticket { border-left: 3px solid #e0deda; padding: 4px 0 4px 10px; }
 .ticket + .ticket { margin-top: 8px; }
 .ticket .t1 { font-size: 13px; font-weight: 600; }
-.ticket .t2 { font-size: 12px; color: #6b6964; margin-top: 2px; }
+.ticket .t2 { font-size: 12px; color: #3f3d39; margin-top: 2px; }
 
-.empty { padding: 40px 10px; text-align: center; color: #8a8782; }
-.note { font-size: 11px; color: #8a8782; }
+.empty { padding: 40px 10px; text-align: center; color: #3f3d39; }
+.note { font-size: 11px; color: #3f3d39; }
 </style>
 </head>
 <body>
@@ -212,7 +212,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
             <span><i style="border-color:#9aa7b4"></i>2025</span>
             <span><i style="border-color:#2b7bc0"></i>2026</span>
             <span><i style="border-color:#126E0E;border-top-style:dashed"></i>2026 avg</span>
-            <span><i style="border-color:#8a8782;border-top-style:dotted"></i>Overall avg</span>
+            <span><i style="border-color:#3f3d39;border-top-style:dotted"></i>Overall avg</span>
           </div>
         </div>
         <div class="chart" id="chart"></div>
@@ -246,7 +246,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     const grid = [0, .25, .5, .75, 1].map(f => {
       const v = Math.round(yMax * f), yy = y(v);
       return `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#eeece8"/>
-              <text x="${L - 6}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#8a8782" font-family="DM Mono">${v}</text>`;
+              <text x="${L - 6}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#3f3d39" font-family="DM Mono">${v}</text>`;
     }).join('');
 
     // Month ticks along the bottom
@@ -256,7 +256,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
       // label a month only at its first week, so a partial month at the left edge doesn't crowd the next label
       if (m !== lastMonth && d.getUTCDate() <= 7) {
         lastMonth = m;
-        ticks += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#8a8782">${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}</text>`;
+        ticks += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#3f3d39">${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}</text>`;
       }
     });
 
@@ -286,7 +286,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     const divX = split > 0 ? (x(split - 1) + x(split)) / 2 : null;
     const yearMarks = divX == null ? '' : `
         <line x1="${divX}" x2="${divX}" y1="${Tp}" y2="${H - B}" stroke="#1a1916" stroke-width="1" stroke-dasharray="4 3" opacity=".45"/>
-        <text x="${divX - 6}" y="${Tp + 10}" text-anchor="end" font-size="11" font-weight="700" fill="#7d8996">${lastYear - 1}</text>
+        <text x="${divX - 6}" y="${Tp + 10}" text-anchor="end" font-size="11" font-weight="700" fill="#3f4a56">${lastYear - 1}</text>
         <text x="${divX + 6}" y="${Tp + 10}" text-anchor="start" font-size="11" font-weight="700" fill="#2b7bc0">${lastYear}</text>`;
     const partial = full.length
       ? `<line x1="${x(full.length - 1)}" y1="${y(full[full.length - 1].n)}" x2="${x(pts.length - 1)}" y2="${y(lastP.n)}" stroke="#2b7bc0" stroke-width="2" stroke-dasharray="3 3" opacity=".6"/>`
@@ -299,7 +299,7 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
         <path d="${oldArea}" fill="#9aa7b4" opacity=".14"/>
         <path d="${newArea}" fill="#2b7bc0" opacity=".10"/>
         ${yearMarks}
-        ${ref(avgAll, '#8a8782', '2 3')}
+        ${ref(avgAll, '#3f3d39', '2 3')}
         ${ref(avg26, '#126E0E', '6 4')}
         <path d="${oldLine}" fill="none" stroke="#9aa7b4" stroke-width="2" stroke-linejoin="round"/>
         <path d="${newLine}" fill="none" stroke="#2b7bc0" stroke-width="2.2" stroke-linejoin="round"/>
