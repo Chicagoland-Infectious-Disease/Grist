@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Facility Profile</title>
+<title>Outreach Score + Facility Profile</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
 <style>
@@ -11,32 +11,79 @@
 body {
   font-family: 'DM Sans', system-ui, sans-serif;
   background: #f1f0ed; color: #1a1916;
-  padding: 14px; font-size: 14px;
+  padding: 14px; font-size: 14px; min-height: 100vh;
 }
 .wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 12px; }
 .card { background: #fff; border: 1px solid #e0deda; border-radius: 10px; padding: 14px 16px; }
 .muted { color: #3f3d39; }
-.mono { font-family: 'DM Mono', monospace; }
 .section-title {
   font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
   text-transform: uppercase; letter-spacing: .07em; color: #3f3d39; margin-bottom: 8px;
 }
+.empty { padding: 40px 10px; text-align: center; color: #3f3d39; }
+.note { font-size: 11px; color: #3f3d39; }
 
-/* Header */
+/* ================= OUTREACH SCORE (sc-) ================= */
+.sc-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.sc-title {
+  font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.07em; color: #aaa;
+}
+.sc-month { font-size: 18px; font-weight: 600; color: #1a1916; }
+.sc-meta { font-family: 'DM Mono', monospace; font-size: 12px; color: #777; }
+.sc-meta b { color: #1a1916; font-weight: 500; }
+
+.sc-chart {
+  position: relative;
+  background: #fff; border: 1px solid #e0deda; border-radius: 10px;
+  padding: 18px 16px 10px;
+}
+.sc-bars {
+  display: grid; grid-template-columns: repeat(var(--n), 1fr);
+  gap: 14px; align-items: end; height: 180px; border-bottom: 1px solid #e0deda;
+}
+.sc-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.sc-val { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: #1a1916; }
+.sc-val.zero { color: #bbb; }
+.sc-bar { width: 100%; max-width: 72px; border-radius: 6px 6px 0 0; transition: height 0.25s ease; min-height: 2px; }
+.sc-bar.zero { background: #ebe9e5 !important; }
+.sc-labels { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 14px; margin-top: 8px; }
+.sc-lbl { text-align: center; font-size: 12px; color: #444; line-height: 1.25; }
+.sc-lbl .sc-pct { display: block; font-family: 'DM Mono', monospace; font-size: 11px; color: #999; margin-top: 2px; }
+.sc-empty { padding: 36px; text-align: center; color: #aaa; font-family: 'DM Mono', monospace; font-size: 13px; }
+
+.sc-who {
+  position: absolute; top: 12px; left: 16px; right: 16px; z-index: 2;
+  font-size: 13px; color: #000; font-weight: 700; line-height: 1.5;
+}
+.sc-who-title {
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em; color: #000; margin-bottom: 1px;
+}
+.sc-who-section {
+  width: fit-content; max-width: 100%; padding: 5px 10px 6px;
+  border-radius: 6px; border-left: 4px solid transparent;
+  background: #E6F2FB; border-left-color: #2B7BC0;
+}
+.sc-fu-item { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; white-space: nowrap; }
+.sc-fu-item .n { font-family: 'DM Mono', monospace; font-size: 12px; color: #000; font-weight: 700; }
+.sc-chip { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 12px; font-weight: 700; line-height: 1.5; }
+.sc-chip.none { background: #ebe9e5; color: #000; }
+
+/* ================= FACILITY PROFILE ================= */
 .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .fac { font-size: clamp(16px, 3.6vw, 22px); font-weight: 700; line-height: 1.2; }
 .title-line { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
 .title-line .fac { flex: 0 1 auto; min-width: 0; }
-.status.rounding { background: #eef3f9; color: #1d3d5c; border: 1px solid #c9d8e8; }      /* long names wrap inside their own box */
-.status {
-  flex: none; display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px;
-  border-radius: 999px; white-space: nowrap;
-}
+.status { flex: none; display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.status.rounding { background: #eef3f9; color: #1d3d5c; border: 1px solid #c9d8e8; }
 .pracs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 .prac-label { margin: 0 4px 0 0; white-space: nowrap; }
 .prac { background: #eef3f9; color: #1d3d5c; border-radius: 6px; padding: 3px 9px; font-size: 13px; font-weight: 600; }
 
-/* KPI tiles */
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 @media (max-width: 620px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
 .kpi { background: #fff; border: 1px solid #e0deda; border-radius: 10px; padding: 12px 14px; }
@@ -45,41 +92,84 @@ body {
 .kpi .sub { font-size: 12px; color: #3f3d39; margin-top: 3px; }
 .kpi.trend .val { font-size: 22px; }
 
-/* Chart */
 .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .legend { display: flex; gap: 14px; font-size: 12px; color: #3f3d39; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
-.chart { position: relative; margin-top: 6px; }
-svg { display: block; width: 100%; height: 220px; overflow: visible; }
+.pf-chart { position: relative; margin-top: 6px; }
+.pf-chart svg { display: block; width: 100%; height: 220px; overflow: visible; }
 .tip {
   position: absolute; pointer-events: none; background: #1a1916; color: #fff;
   font-size: 12px; padding: 5px 8px; border-radius: 6px; white-space: nowrap;
   transform: translate(-50%, -110%); display: none;
 }
-
-/* Lower grid */
 .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
 .ticket { border-left: 3px solid #e0deda; padding: 4px 0 4px 10px; }
 .ticket + .ticket { margin-top: 8px; }
 .ticket .t1 { font-size: 13px; font-weight: 600; }
 .ticket .t2 { font-size: 12px; color: #3f3d39; margin-top: 2px; }
-
-.empty { padding: 40px 10px; text-align: center; color: #3f3d39; }
-.note { font-size: 11px; color: #3f3d39; }
 </style>
 </head>
 <body>
-<div class="wrap" id="app"><div class="card empty">Select a facility in the outreach table…</div></div>
+<div class="wrap">
+
+  <!-- ===== Outreach score for the selected month ===== -->
+  <div class="card">
+    <div class="sc-head">
+      <div>
+        <div class="sc-title">Outreach score</div>
+        <div class="sc-month" id="scMonth">—</div>
+      </div>
+      <div class="sc-meta" id="scMeta"></div>
+    </div>
+    <div class="sc-chart" id="scChart">
+      <div class="sc-who" id="scWho" style="display:none">
+        <div class="sc-who-section">
+          <div class="sc-who-title">Follow up required this month</div>
+          <div id="scFuList"></div>
+        </div>
+      </div>
+      <div class="sc-empty" id="scEmpty">Select a month…</div>
+      <div class="sc-bars" id="scBars" style="display:none"></div>
+      <div class="sc-labels" id="scLabels" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ===== Facility profile for the selected outreach row ===== -->
+  <div id="profile" class="wrap"><div class="card empty">Select a facility in the outreach table…</div></div>
+
+</div>
 
 <script>
-  // Tables in the Marketing Operations doc
-  const T = {
-    pracs:     'Facility_Practitioners',
-    trend:     'Weekly_Facility_Trend',
-    history:   'Facility_Weekly_History',
-    issues:    'Facility_Issues',
+  // ================= CONFIG =================
+  const OUTREACH_TABLE  = 'Facility_Outreach';
+  const MONTH_REF_COL   = 'Month';                          // Reference to the Month table
+  const SCORE_COL       = 'Score';                          // "1 - Poor" … "5 - Excellent"
+  const CONTACTED_COL   = 'Date_Contacted';                 // used for "Contacted, no score"
+  const FOLLOW_UP_COL   = 'Follow_Up_Required_This_Month';  // ChoiceList
+  const MONTH_TABLE     = 'Month';
+  const MONTH_LABEL_COL = '';   // set to your month label column id; blank = first text column
+
+  const T = {   // tables used by the facility profile
+    pracs:   'Facility_Practitioners',
+    trend:   'Weekly_Facility_Trend',
+    history: 'Facility_Weekly_History',
+    issues:  'Facility_Issues',
   };
 
+  const CATEGORIES = [
+    { key: 1,         label: '1 - Poor',       color: '#E00A17' },
+    { key: 2,         label: '2 - Fair',       color: '#FD8182' },
+    { key: 3,         label: '3 - Good',       color: '#FECBCC' },
+    { key: 4,         label: '4 - Very Good',  color: '#7ED321' },
+    { key: 5,         label: '5 - Excellent',  color: '#126E0E' },
+    { key: 'NoScore', label: 'Contacted, no score', color: '#cfcac3' },
+  ];
+  const FOLLOW_UP_CHOICES = [
+    { key: 'Yes',                      fill: '#2AE028', text: '#000000' },
+    { key: 'No',                       fill: '#E00A17', text: '#FFFFFF' },
+    { key: 'Outcome - Improvement',    fill: '#126E0E', text: '#FFFFFF' },
+    { key: 'Outcome - No Improvement', fill: '#740206', text: '#FFFFFF' },
+  ];
   const STATUS_COLORS = {
     'Active':             ['#126E0E', '#fff'],
     'Open':               ['#157AFB', '#fff'],
@@ -90,7 +180,160 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
 
   grist.ready({ requiredAccess: 'full' });
 
-  // ---------- data cache (refreshed at most once a minute) ----------
+  // ================= SHARED HELPERS =================
+  const $ = id => document.getElementById(id);
+  const norm = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+                      .replace(/[^a-zA-Z0-9]+/g, ' ').trim().toLowerCase();
+  const list = v => Array.isArray(v) ? v.slice(v[0] === 'L' ? 1 : 0) : (v ? [v] : []);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ================= ROUTING =================
+  // The widget follows the outreach table's cursor. The score section redraws only when the
+  // selected row's month changes; the profile redraws only when the facility changes.
+  let currentMonth;          // Month row id currently shown in the score section
+  let current = '';          // facility currently shown in the profile
+
+  grist.onRecord(rec => {
+    if (!rec) return;
+    const monthId = rec[MONTH_REF_COL];
+    if (monthId !== currentMonth) {
+      currentMonth = monthId;
+      refreshScores();
+    }
+    const name = String(rec.Facility_Name || '').trim();
+    if (name && name !== current) showProfile(name);
+    if (!name) { current = ''; renderEmpty('Select a facility in the outreach table…'); }
+  });
+
+  // Fires whenever outreach data changes, so new scores show up without re-selecting.
+  grist.onRecords(() => { if (currentMonth != null) refreshScores(); });
+
+  // ================= OUTREACH SCORE =================
+  const scoreOf = v => {
+    const m = String(v ?? '').match(/^\s*([1-5])/);
+    return m ? Number(m[1]) : null;
+  };
+
+  function monthLabel(m, id) {
+    if (!m) return '';
+    const i = m.id.indexOf(id);
+    if (i < 0) return '';
+    let col = MONTH_LABEL_COL && m[MONTH_LABEL_COL] ? MONTH_LABEL_COL : null;
+    if (!col) col = Object.keys(m).find(k => k !== 'id' && k !== 'manualSort' &&
+                     !k.startsWith('gristHelper') && typeof m[k][i] === 'string' && m[k][i].trim());
+    return col ? String(m[col][i]) : '';
+  }
+
+  let scRequest = 0;
+  async function refreshScores() {
+    const monthId = currentMonth, mine = ++scRequest;
+    try {
+      const [t, m] = await Promise.all([
+        grist.docApi.fetchTable(OUTREACH_TABLE),
+        grist.docApi.fetchTable(MONTH_TABLE).catch(() => null),
+      ]);
+      if (mine !== scRequest) return;   // a newer month was selected meanwhile
+
+      const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, NoScore: 0 };
+      let total = 0, fuNotRecorded = 0;
+      const fuCounts = new Map();
+      const fuCol = t[FOLLOW_UP_COL], dateCol = t[CONTACTED_COL];
+
+      for (let i = 0; i < t.id.length; i++) {
+        if (t[MONTH_REF_COL][i] !== monthId) continue;
+        total++;
+        const s = scoreOf(t[SCORE_COL] && t[SCORE_COL][i]);
+        if (s) counts[s]++;
+        else if (!dateCol || dateCol[i]) counts.NoScore++;
+
+        if (fuCol) {
+          const uniq = [...new Set(list(fuCol[i]).map(v => String(v).trim()).filter(Boolean))];
+          if (!uniq.length) fuNotRecorded++;
+          uniq.forEach(v => fuCounts.set(v, (fuCounts.get(v) || 0) + 1));
+        }
+      }
+
+      $('scMonth').textContent = monthLabel(m, monthId) || '—';
+      if (!total) { showScoreEmpty('No outreach rows for this month yet.'); return; }
+      renderScores(counts, total);
+      renderFollowUp(fuCol, fuCounts, fuNotRecorded, total);
+    } catch (e) {
+      console.error('Outreach score:', e);
+      showScoreEmpty('Could not load outreach data. Check that this widget has Full document access.');
+    }
+  }
+
+  function showScoreEmpty(msg) {
+    $('scEmpty').textContent = msg;
+    $('scEmpty').style.display = '';
+    $('scBars').style.display = 'none';
+    $('scLabels').style.display = 'none';
+    $('scMeta').textContent = '';
+    setWhoVisible(false);
+  }
+
+  function renderScores(counts, total) {
+    const scored = [1, 2, 3, 4, 5].reduce((s, k) => s + counts[k], 0);
+    const values = CATEGORIES.map(c => counts[c.key]);
+    const max = Math.max(1, ...values);
+
+    $('scMeta').innerHTML = `<b>${total}</b> outreach · <b>${scored}</b> scored`;
+
+    const bars = $('scBars'), labels = $('scLabels');
+    bars.innerHTML = ''; labels.innerHTML = '';
+    bars.style.setProperty('--n', CATEGORIES.length);
+    labels.style.setProperty('--n', CATEGORIES.length);
+
+    CATEGORIES.forEach((c, i) => {
+      const v = values[i];
+      const col = document.createElement('div');
+      col.className = 'sc-col';
+      col.innerHTML = `<div class="sc-val${v === 0 ? ' zero' : ''}">${v}</div>`;
+      const bar = document.createElement('div');
+      bar.className = 'sc-bar' + (v === 0 ? ' zero' : '');
+      bar.style.background = c.color;
+      bar.style.height = Math.round((v / max) * 100) + '%';
+      bar.title = `${c.label}: ${v}`;
+      col.appendChild(bar);
+      bars.appendChild(col);
+
+      const pct = (c.key !== 'NoScore' && scored > 0) ? Math.round(v / scored * 100) + '%' : '';
+      const lbl = document.createElement('div');
+      lbl.className = 'sc-lbl';
+      lbl.innerHTML = `${c.label}${pct ? `<span class="sc-pct">${pct} of scored</span>` : ''}`;
+      labels.appendChild(lbl);
+    });
+
+    $('scEmpty').style.display = 'none';
+    bars.style.display = '';
+    labels.style.display = '';
+  }
+
+  function renderFollowUp(fuCol, fuCounts, fuNotRecorded, total) {
+    if (!fuCol) { setWhoVisible(false); return; }
+    const pct = n => Math.round(n / total * 100) + '%';
+    const chip = (label, n, fill, text) =>
+      `<span class="sc-fu-item"><span class="sc-chip" style="background:${fill};color:${text}">${esc(label)}</span> ${pct(n)} <span class="n">(${n})</span></span>`;
+    const known = new Set(FOLLOW_UP_CHOICES.map(c => c.key));
+    const items = FOLLOW_UP_CHOICES.filter(c => fuCounts.get(c.key))
+                    .map(c => chip(c.key, fuCounts.get(c.key), c.fill, c.text));
+    [...fuCounts.entries()].filter(([k]) => !known.has(k))
+      .forEach(([k, n]) => items.push(chip(k, n, '#ebe9e5', '#000')));
+    if (fuNotRecorded) {
+      items.push(`<span class="sc-fu-item"><span class="sc-chip none">Not recorded</span> ${pct(fuNotRecorded)} <span class="n">(${fuNotRecorded})</span></span>`);
+    }
+    $('scFuList').innerHTML = items.join('');
+    setWhoVisible(true);
+  }
+
+  function setWhoVisible(show) {
+    const box = $('scWho'), chart = $('scChart');
+    box.style.display = show ? '' : 'none';
+    chart.style.paddingTop = show ? (box.offsetHeight + 22) + 'px' : '';
+  }
+
+  // ================= FACILITY PROFILE =================
   let cache = null, cacheAt = 0, loading = null;
   async function loadAll() {
     if (cache && Date.now() - cacheAt < 60000) return cache;
@@ -107,33 +350,22 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     return loading;
   }
 
-  let current = '';
-  grist.onRecord(async rec => {
-    const name = rec && String(rec.Facility_Name || '').trim();
-    if (!name) { renderEmpty('Select a facility in the outreach table…'); return; }
+  async function showProfile(name) {
     current = name;
     try {
       const data = await loadAll();
-      if (current !== name) return;           // user clicked another row meanwhile
+      if (current !== name) return;
       render(name, data);
     } catch (e) {
       console.error(e);
       renderEmpty('Could not load facility data. Check that this widget has Full document access.');
     }
-  });
+  }
 
-  // ---------- helpers ----------
-  const norm = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-                      .replace(/[^a-zA-Z0-9]+/g, ' ').trim().toLowerCase();
-  const list = v => Array.isArray(v) ? v.slice(v[0] === 'L' ? 1 : 0) : (v ? [v] : []);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  // Whole numbers everywhere, rounded half up -- same as the Weekly Facility Trend table.
   const r0 = n => (n == null || isNaN(n)) ? null : Math.floor(Number(n) + 0.5);
   const fmt1 = n => r0(n) == null ? '—' : String(r0(n));
   const dateOf = v => (v == null || v === '') ? null : new Date(Number(v) * 1000);
   const mdY = d => d ? `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${d.getUTCFullYear()}` : '—';
-  const pill = (text, [bg, fg]) => `<span class="pill" style="background:${bg};color:${fg}">${esc(text)}</span>`;
 
   function rowsWhere(tbl, col, key) {
     if (!tbl || !tbl[col]) return [];
@@ -143,45 +375,36 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
   }
 
   function renderEmpty(msg) {
-    document.getElementById('app').innerHTML = `<div class="card empty">${esc(msg)}</div>`;
+    $('profile').innerHTML = `<div class="card empty">${esc(msg)}</div>`;
   }
 
-  // ---------- main render ----------
   function render(name, d) {
     const key = norm(name);
 
-    // Practitioners + status
     const p = rowsWhere(d.pracs, 'Facility_Name', key)[0];
     const practitioners = p != null ? list(d.pracs.Practitioner_Name[p]) : [];
     const status = p != null ? (d.pracs.Facility_Status[p] || '') : '';
     const rounding = (p != null && d.pracs.Rounding_Frequency) ? (d.pracs.Rounding_Frequency[p] || '') : '';
 
-    // Trend row
     const t = rowsWhere(d.trend, 'Facility_Name', key)[0];
     const g = c => (t != null && d.trend[c]) ? d.trend[c][t] : null;
     const avgAll = g('Weekly_Avg_All'), avg26 = g('Weekly_Avg_2026'), roll4 = g('Prior_4_Avg');
-    // Category from the same rounded numbers as the tiles (matches the Trend Category column).
-    let trendCat = '';
-    let deltaTxt = '—';
+    let trendCat = '', deltaTxt = '—';
     const base0 = r0(avg26) || 0, recent0 = r0(roll4) || 0;
     if (base0) {
-      // Compare the same whole numbers shown in the tiles, so 2 vs 2 reads "at avg".
       const delta = (recent0 - base0) / base0 * 100;
       deltaTxt = delta > 0 ? '▲ +' + Math.round(delta) + '%' : delta < 0 ? '▼ ' + Math.round(delta) + '%' : '— at avg';
       trendCat = delta > 0 ? 'Trending Up' : delta < 0 ? 'Trending Down' : 'At Average';
     }
 
-    // History (52 weeks), oldest first
     const hIdx = rowsWhere(d.history, 'Facility_Name', key)
       .map(i => ({ start: Number(d.history.Week_Start[i]), label: d.history.Week_Label[i], n: Number(d.history.Encounters[i]) || 0 }))
       .sort((a, b) => a.start - b.start);
 
-    // Issue tickets (open / in progress)
     const tk = [];
-    if (d.issues) {
-      const nameCol = d.issues.Facility_Text ? 'Facility_Text' : null;
-      if (nameCol) for (let i = 0; i < d.issues.id.length; i++) {
-        if (norm(d.issues[nameCol][i]) !== key) continue;
+    if (d.issues && d.issues.Facility_Text) {
+      for (let i = 0; i < d.issues.id.length; i++) {
+        if (norm(d.issues.Facility_Text[i]) !== key) continue;
         const st = d.issues.Status[i];
         if (st !== 'Open' && st !== 'In Progress') continue;
         tk.push({ id: d.issues.id[i], issue: d.issues.Issue[i], st, pr: d.issues.Priority[i], opened: d.issues.Date_Opened[i] });
@@ -189,10 +412,11 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
       tk.sort((a, b) => (Number(b.opened) || 0) - (Number(a.opened) || 0));
     }
 
-    const statusHtml = status ? `<span class="status" style="background:${(STATUS_COLORS[status] || ['#ebe9e5'])[0]};color:${(STATUS_COLORS[status] || [, '#000'])[1]}">${esc(status)}</span>` : '';
+    const sc = STATUS_COLORS[status] || ['#ebe9e5', '#000'];
+    const statusHtml = status ? `<span class="status" style="background:${sc[0]};color:${sc[1]}">${esc(status)}</span>` : '';
     const trendColor = trendCat === 'Trending Down' ? '#B3000C' : trendCat === 'Trending Up' ? '#126E0E' : '#1a1916';
 
-    document.getElementById('app').innerHTML = `
+    $('profile').innerHTML = `
       <div class="card">
         <div class="head">
           <div class="title-line">
@@ -224,26 +448,25 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
             <span><i style="border-color:#3f3d39;border-top-style:dotted"></i>Overall avg</span>
           </div>
         </div>
-        <div class="chart" id="chart"></div>
+        <div class="pf-chart" id="pfChart"></div>
         <div class="note">The current week is partial, and the most recent weeks usually lag about two weeks.</div>
       </div>
 
       <div class="card">
-          <div class="section-title">Open issue tickets (${tk.length})</div>
-          ${tk.length ? tk.slice(0, 4).map(x => `
-            <div class="ticket" style="border-left-color:${PRIORITY_COLORS[x.pr] || '#e0deda'}">
-              <div class="t1">#${x.id} · ${esc(String(x.issue || '').slice(0, 90))}${String(x.issue || '').length > 90 ? '…' : ''}</div>
-              <div class="t2">${esc(x.st)}${x.pr ? ' · ' + esc(x.pr) : ''} · opened ${mdY(dateOf(x.opened))}</div>
-            </div>`).join('') + (tk.length > 4 ? `<div class="note" style="margin-top:8px">+${tk.length - 4} more on the Facility Issues page</div>` : '')
-          : '<div class="muted">No open tickets.</div>'}
-        </div>`;
+        <div class="section-title">Open issue tickets (${tk.length})</div>
+        ${tk.length ? tk.slice(0, 4).map(x => `
+          <div class="ticket" style="border-left-color:${PRIORITY_COLORS[x.pr] || '#e0deda'}">
+            <div class="t1">#${x.id} · ${esc(String(x.issue || '').slice(0, 90))}${String(x.issue || '').length > 90 ? '…' : ''}</div>
+            <div class="t2">${esc(x.st)}${x.pr ? ' · ' + esc(x.pr) : ''} · opened ${mdY(dateOf(x.opened))}</div>
+          </div>`).join('') + (tk.length > 4 ? `<div class="note" style="margin-top:8px">+${tk.length - 4} more on the Facility Issues page</div>` : '')
+        : '<div class="muted">No open tickets.</div>'}
+      </div>`;
 
     drawChart(hIdx, avg26, avgAll);
   }
 
-  // ---------- chart (plain SVG, no libraries) ----------
   function drawChart(pts, avg26, avgAll) {
-    const box = document.getElementById('chart');
+    const box = $('pfChart');
     if (!pts.length) { box.innerHTML = '<div class="empty" style="padding:30px">No weekly history for this facility yet.</div>'; return; }
 
     const W = Math.max(box.clientWidth, 300), H = 220, L = 34, R = 10, Tp = 10, B = 26;
@@ -258,11 +481,9 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
               <text x="${L - 6}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#3f3d39" font-family="DM Mono">${v}</text>`;
     }).join('');
 
-    // Month ticks along the bottom
     let ticks = '', lastMonth = -1;
     pts.forEach((p, i) => {
       const d = new Date(p.start * 1000), m = d.getUTCMonth();
-      // label a month only at its first week, so a partial month at the left edge doesn't crowd the next label
       if (m !== lastMonth && d.getUTCDate() <= 7) {
         lastMonth = m;
         ticks += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#3f3d39">${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}</text>`;
@@ -271,10 +492,8 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
 
     const full = pts.slice(0, -1), lastP = pts[pts.length - 1];
     const yearOf = p => new Date(p.start * 1000).getUTCFullYear();
-
-    // Split the line where the year changes: first week whose Sunday is in the newer year.
     const lastYear = yearOf(lastP);
-    let split = pts.findIndex(p => yearOf(p) === lastYear);   // index of first newer-year week
+    let split = pts.findIndex(p => yearOf(p) === lastYear);
     if (split < 0) split = 0;
 
     const pathFrom = (a, b) => full.slice(a, b + 1)
@@ -284,14 +503,12 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
       if (b < a) return '';
       return `${pathFrom(a, b)} L${x(b)},${y(0)} L${x(a)},${y(0)} Z`;
     };
-    // Older year runs up to and including the first newer-year point so the line stays joined.
     const oldEnd = Math.min(split, full.length - 1);
-    const oldLine  = split > 0 ? pathFrom(0, oldEnd) : '';
-    const newLine  = split <= full.length - 1 ? pathFrom(split, full.length - 1) : '';
-    const oldArea  = split > 0 ? areaFrom(0, oldEnd) : '';
-    const newArea  = areaFrom(split, full.length - 1);
+    const oldLine = split > 0 ? pathFrom(0, oldEnd) : '';
+    const newLine = split <= full.length - 1 ? pathFrom(split, full.length - 1) : '';
+    const oldArea = split > 0 ? areaFrom(0, oldEnd) : '';
+    const newArea = areaFrom(split, full.length - 1);
 
-    // Vertical divider + year labels
     const divX = split > 0 ? (x(split - 1) + x(split)) / 2 : null;
     const yearMarks = divX == null ? '' : `
         <line x1="${divX}" x2="${divX}" y1="${Tp}" y2="${H - B}" stroke="#1a1916" stroke-width="1" stroke-dasharray="4 3" opacity=".45"/>
@@ -314,13 +531,13 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
         <path d="${newLine}" fill="none" stroke="#2b7bc0" stroke-width="2.2" stroke-linejoin="round"/>
         ${partial}
         <circle cx="${x(pts.length - 1)}" cy="${y(lastP.n)}" r="3" fill="#fff" stroke="#2b7bc0" stroke-width="1.5"/>
-        <line id="hl" y1="${Tp}" y2="${H - B}" stroke="#1a1916" stroke-width="1" opacity="0"/>
-        <rect id="hit" x="${L}" y="${Tp}" width="${W - L - R}" height="${H - Tp - B}" fill="transparent"/>
+        <line class="hl" y1="${Tp}" y2="${H - B}" stroke="#1a1916" stroke-width="1" opacity="0"/>
+        <rect class="hit" x="${L}" y="${Tp}" width="${W - L - R}" height="${H - Tp - B}" fill="transparent"/>
       </svg>
-      <div class="tip" id="tip"></div>`;
+      <div class="tip"></div>`;
 
-    const svg = box.querySelector('svg'), tip = box.querySelector('#tip'), hl = box.querySelector('#hl');
-    const hit = box.querySelector('#hit');
+    const svg = box.querySelector('svg'), tip = box.querySelector('.tip'), hl = box.querySelector('.hl');
+    const hit = box.querySelector('.hit');
     hit.addEventListener('mousemove', ev => {
       const r = svg.getBoundingClientRect();
       const px = (ev.clientX - r.left) * (W / r.width);
@@ -335,9 +552,10 @@ svg { display: block; width: 100%; height: 220px; overflow: visible; }
     hit.addEventListener('mouseleave', () => { tip.style.display = 'none'; hl.setAttribute('opacity', '0'); });
   }
 
-  // Redraw the chart at the new width if the popup / panel is resized.
+  // ================= RESIZE =================
   let rz;
   window.addEventListener('resize', () => {
+    if ($('scWho').style.display !== 'none') setWhoVisible(true);
     clearTimeout(rz);
     rz = setTimeout(() => { if (cache && current) render(current, cache); }, 150);
   });
