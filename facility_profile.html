@@ -24,35 +24,31 @@ body {
 .note { font-size: 11px; color: #3f3d39; }
 
 /* ================= OUTREACH SCORE (sc-) ================= */
-.sc-head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
-}
-.sc-title {
-  font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
-  text-transform: uppercase; letter-spacing: 0.07em; color: #aaa;
-}
-.sc-month { font-size: 18px; font-weight: 600; color: #1a1916; }
-.sc-meta { font-family: 'DM Mono', monospace; font-size: 12px; color: #777; }
-.sc-meta b { color: #1a1916; font-weight: 500; }
-
 .sc-chart {
   position: relative;
   background: #fff; border: 1px solid #e0deda; border-radius: 10px;
   padding: 18px 16px 10px;
 }
 .sc-bars {
+  position: relative;
   display: grid; grid-template-columns: repeat(var(--n), 1fr);
   gap: 14px; align-items: end; height: 180px; border-bottom: 1px solid #e0deda;
 }
-.sc-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.sc-col { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
 .sc-val { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: #1a1916; }
 .sc-val.zero { color: #bbb; }
+.sc-val .sc-pct { font-size: 11px; font-weight: 400; color: #8a857d; margin-left: 3px; }
+.sc-wm {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; color: rgba(26, 25, 22, .09); line-height: 1.1;
+}
+.sc-wm-month { font-size: clamp(22px, 6vw, 44px); font-weight: 700; }
+.sc-wm-sub { font-family: 'DM Mono', monospace; font-size: 13px; margin-top: 4px; color: rgba(26, 25, 22, .22); }
 .sc-bar { width: 100%; max-width: 72px; border-radius: 6px 6px 0 0; transition: height 0.25s ease; min-height: 2px; }
 .sc-bar.zero { background: #ebe9e5 !important; }
 .sc-labels { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 14px; margin-top: 8px; }
 .sc-lbl { text-align: center; font-size: 12px; color: #444; line-height: 1.25; }
-.sc-lbl .sc-pct { display: block; font-family: 'DM Mono', monospace; font-size: 11px; color: #999; margin-top: 2px; }
 .sc-empty { padding: 36px; text-align: center; color: #aaa; font-family: 'DM Mono', monospace; font-size: 13px; }
 
 .sc-who {
@@ -92,7 +88,7 @@ body {
 .kpi .sub { font-size: 12px; color: #3f3d39; margin-top: 3px; }
 .kpi.trend .val { font-size: 22px; }
 
-.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.chart-head { display: flex; justify-content: flex-end; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .legend { display: flex; gap: 14px; font-size: 12px; color: #3f3d39; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
 .pf-chart { position: relative; margin-top: 6px; }
@@ -140,13 +136,6 @@ body {
 
   <!-- ===== Outreach score for the selected month ===== -->
   <div class="card">
-    <div class="sc-head">
-      <div>
-        <div class="sc-title">Outreach score</div>
-        <div class="sc-month" id="scMonth">—</div>
-      </div>
-      <div class="sc-meta" id="scMeta"></div>
-    </div>
     <div class="sc-chart" id="scChart">
       <div class="sc-who" id="scWho" style="display:none">
         <div class="sc-who-section">
@@ -296,8 +285,8 @@ body {
         }
       }
 
-      $('scMonth').textContent = monthLabel(m, monthVal) ||
-        (typeof monthVal === 'string' ? monthVal : '—');
+      scMonthText = monthLabel(m, monthVal) ||
+        (typeof monthVal === 'string' ? monthVal : '');
       if (!total) {
         showScoreEmpty(`No outreach rows matched. Selected row id: ${currentRowId} ` +
           `(found in ${OUTREACH_TABLE}: ${rowIdx >= 0 ? 'yes' : 'no'}), Month value: ${monthKey}. ` +
@@ -317,19 +306,21 @@ body {
     $('scEmpty').style.display = '';
     $('scBars').style.display = 'none';
     $('scLabels').style.display = 'none';
-    $('scMeta').textContent = '';
     setWhoVisible(false);
   }
 
+  let scMonthText = '';
   function renderScores(counts, total) {
     const scored = [1, 2, 3, 4, 5].reduce((s, k) => s + counts[k], 0);
     const values = CATEGORIES.map(c => counts[c.key]);
     const max = Math.max(1, ...values);
 
-    $('scMeta').innerHTML = `<b>${total}</b> outreach · <b>${scored}</b> scored`;
-
     const bars = $('scBars'), labels = $('scLabels');
-    bars.innerHTML = ''; labels.innerHTML = '';
+    bars.innerHTML = `<div class="sc-wm">
+        <div class="sc-wm-month">${esc(scMonthText)}</div>
+        <div class="sc-wm-sub">${total} outreach · ${scored} scored</div>
+      </div>`;
+    labels.innerHTML = '';
     bars.style.setProperty('--n', CATEGORIES.length);
     labels.style.setProperty('--n', CATEGORIES.length);
 
@@ -337,7 +328,8 @@ body {
       const v = values[i];
       const col = document.createElement('div');
       col.className = 'sc-col';
-      col.innerHTML = `<div class="sc-val${v === 0 ? ' zero' : ''}">${v}</div>`;
+      const pct = (c.key !== 'NoScore' && scored > 0) ? Math.round(v / scored * 100) + '%' : '';
+      col.innerHTML = `<div class="sc-val${v === 0 ? ' zero' : ''}">${v}${pct ? `<span class="sc-pct">${pct}</span>` : ''}</div>`;
       const bar = document.createElement('div');
       bar.className = 'sc-bar' + (v === 0 ? ' zero' : '');
       bar.style.background = c.color;
@@ -346,10 +338,9 @@ body {
       col.appendChild(bar);
       bars.appendChild(col);
 
-      const pct = (c.key !== 'NoScore' && scored > 0) ? Math.round(v / scored * 100) + '%' : '';
       const lbl = document.createElement('div');
       lbl.className = 'sc-lbl';
-      lbl.innerHTML = `${c.label}${pct ? `<span class="sc-pct">${pct} of scored</span>` : ''}`;
+      lbl.textContent = c.label;
       labels.appendChild(lbl);
     });
 
@@ -477,7 +468,6 @@ body {
 
       <div class="card">
         <div class="chart-head">
-          <div class="section-title" style="margin:0">Weekly encounters · last 52 weeks</div>
           <div class="legend">
             <span><i style="border-color:#9aa7b4"></i>2025</span>
             <span><i style="border-color:#2b7bc0"></i>2026</span>
@@ -486,7 +476,6 @@ body {
           </div>
         </div>
         <div class="pf-chart" id="pfChart"></div>
-        <div class="note">The current week is partial, and the most recent weeks usually lag about two weeks.</div>
       </div>
 
       ${timelineHtml(key, d)}`;
@@ -581,7 +570,7 @@ body {
 
     const nOut = ev.filter(e => e.kind === 'outreach').length, nIss = ev.length - nOut;
     return `<div class="card">
-      <div class="chart-head">
+      <div class="chart-head" style="justify-content:space-between">
         <div class="section-title" style="margin:0">Activity timeline</div>
         <div class="legend">
           <span><i style="border-color:#2b7bc0;border-top-width:6px;width:6px;border-radius:50%"></i>${nOut} outreach</span>
