@@ -107,6 +107,32 @@ body {
 .ticket + .ticket { margin-top: 8px; }
 .ticket .t1 { font-size: 13px; font-weight: 600; }
 .ticket .t2 { font-size: 12px; color: #3f3d39; margin-top: 2px; }
+
+/* ================= ACTIVITY TIMELINE ================= */
+.tl-month {
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .07em; color: #3f3d39;
+  margin: 16px 0 8px;
+}
+.tl-month:first-of-type { margin-top: 4px; }
+.tl-item { position: relative; margin-left: 6px; padding: 0 0 14px 20px; border-left: 2px solid #e0deda; }
+.tl-group .tl-item:last-child { padding-bottom: 2px; }
+.tl-dot {
+  position: absolute; left: -7px; top: 3px; width: 12px; height: 12px;
+  border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #e0deda;
+}
+.tl-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tl-date { font-family: 'DM Mono', monospace; font-size: 12px; color: #3f3d39; }
+.tl-kind { font-size: 13px; font-weight: 700; }
+.tl-body { font-size: 13px; margin-top: 3px; }
+.tl-notes {
+  font-size: 12px; color: #3f3d39; margin-top: 4px; white-space: pre-wrap;
+  background: #f7f6f3; border-radius: 6px; padding: 6px 9px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tl-notes.clamped { cursor: pointer; }
+.tl-notes.open { display: block; -webkit-line-clamp: unset; }
+.tl-more { font-size: 11px; color: #2b7bc0; margin-top: 2px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -154,6 +180,7 @@ body {
     trend:   'Weekly_Facility_Trend',
     history: 'Facility_Weekly_History',
     issues:  'Facility_Issues',
+    outreach: 'Facility_Outreach',
   };
 
   const CATEGORIES = [
@@ -361,10 +388,10 @@ body {
     if (cache && Date.now() - cacheAt < 60000) return cache;
     if (loading) return loading;
     loading = (async () => {
-      const [pracs, trend, history, issues] = await Promise.all(
-        [T.pracs, T.trend, T.history, T.issues].map(t =>
+      const [pracs, trend, history, issues, outreach] = await Promise.all(
+        [T.pracs, T.trend, T.history, T.issues, T.outreach].map(t =>
           grist.docApi.fetchTable(t).catch(() => null)));
-      cache = { pracs, trend, history, issues };
+      cache = { pracs, trend, history, issues, outreach };
       cacheAt = Date.now();
       loading = null;
       return cache;
@@ -482,10 +509,122 @@ body {
             <div class="t2">${esc(x.st)}${x.pr ? ' · ' + esc(x.pr) : ''} · opened ${mdY(dateOf(x.opened))}</div>
           </div>`).join('') + (tk.length > 4 ? `<div class="note" style="margin-top:8px">+${tk.length - 4} more on the Facility Issues page</div>` : '')
         : '<div class="muted">No open tickets.</div>'}
-      </div>`;
+      </div>
+
+      ${timelineHtml(key, d)}`;
 
     drawChart(hIdx, avg26, avgAll);
+    markClampedNotes();
   }
+
+  // ---------- activity timeline ----------
+  const ISSUE_STATUS_COLORS = {
+    'Open':        ['#157AFB', '#fff'],
+    'In Progress': ['#B45309', '#fff'],
+    'Resolved':    ['#126E0E', '#fff'],
+    'Closed':      ['#5f5b55', '#fff'],
+  };
+  const SCORE_COLORS = { 1: '#E00A17', 2: '#FD8182', 3: '#FECBCC', 4: '#7ED321', 5: '#126E0E' };
+  const SCORE_TEXT   = { 1: '#fff', 2: '#000', 3: '#000', 4: '#000', 5: '#fff' };
+
+  // Facility name for an issue row: text column if there is one, else resolve a reference.
+  function issueFacility(d, i) {
+    const iss = d.issues;
+    if (iss.Facility_Text) return iss.Facility_Text[i];
+    const v = iss.Facility_Name ? iss.Facility_Name[i] : null;
+    if (typeof v === 'number' && d.pracs) {
+      const j = d.pracs.id.indexOf(v);
+      return j >= 0 ? d.pracs.Facility_Name[j] : '';
+    }
+    return v;
+  }
+
+  function timelineHtml(key, d) {
+    const ev = [];
+
+    const o = d.outreach;
+    if (o && o.Facility_Name) {
+      for (let i = 0; i < o.id.length; i++) {
+        if (norm(o.Facility_Name[i]) !== key) continue;
+        const date = o.Date_Contacted ? o.Date_Contacted[i] : null;
+        const notes = o.Notes ? String(o.Notes[i] || '').trim() : '';
+        if (!date && !notes) continue;   // planned row, never contacted
+        const s = o.Score ? scoreOf(o.Score[i]) : null;
+        ev.push({ kind: 'outreach', date, notes, score: s, scoreLabel: s ? String(o.Score[i]) : '' });
+      }
+    }
+
+    const iss = d.issues;
+    if (iss) {
+      for (let i = 0; i < iss.id.length; i++) {
+        if (norm(issueFacility(d, i)) !== key) continue;
+        ev.push({
+          kind: 'issue', id: iss.id[i],
+          date: iss.Date_Opened ? iss.Date_Opened[i] : null,
+          issue: iss.Issue ? String(iss.Issue[i] || '').trim() : '',
+          status: iss.Status ? iss.Status[i] : '',
+          notes: iss.Notes ? String(iss.Notes[i] || '').trim() : '',
+        });
+      }
+    }
+
+    if (!ev.length) {
+      return `<div class="card"><div class="section-title">Activity timeline</div>
+              <div class="muted">No outreach or issues recorded for this facility yet.</div></div>`;
+    }
+
+    // Newest first; undated entries go last.
+    ev.sort((a, b) => (Number(b.date) || -Infinity) - (Number(a.date) || -Infinity));
+
+    const groups = [];
+    ev.forEach(e => {
+      const dt = dateOf(e.date);
+      const label = dt ? dt.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : 'No date';
+      if (!groups.length || groups[groups.length - 1].label !== label) groups.push({ label, items: [] });
+      groups[groups.length - 1].items.push(e);
+    });
+
+    const item = e => {
+      const date = `<span class="tl-date">${e.date ? mdY(dateOf(e.date)) : 'No date'}</span>`;
+      const notes = e.notes ? `<div class="tl-notes">${esc(e.notes)}</div>` : '';
+      if (e.kind === 'outreach') {
+        const chip = e.score
+          ? `<span class="pill" style="background:${SCORE_COLORS[e.score]};color:${SCORE_TEXT[e.score]}">${esc(e.scoreLabel)}</span>`
+          : '<span class="pill" style="background:#ebe9e5;color:#000">No score</span>';
+        return `<div class="tl-item"><span class="tl-dot" style="background:#2b7bc0"></span>
+          <div class="tl-top">${date}<span class="tl-kind">Outreach</span>${chip}</div>${notes}</div>`;
+      }
+      const sc = ISSUE_STATUS_COLORS[e.status] || ['#ebe9e5', '#000'];
+      return `<div class="tl-item"><span class="tl-dot" style="background:#B3000C"></span>
+        <div class="tl-top">${date}<span class="tl-kind">Issue #${e.id} opened</span>
+          ${e.status ? `<span class="pill" style="background:${sc[0]};color:${sc[1]}">${esc(e.status)}</span>` : ''}</div>
+        ${e.issue ? `<div class="tl-body">${esc(e.issue)}</div>` : ''}${notes}</div>`;
+    };
+
+    const nOut = ev.filter(e => e.kind === 'outreach').length, nIss = ev.length - nOut;
+    return `<div class="card">
+      <div class="chart-head">
+        <div class="section-title" style="margin:0">Activity timeline</div>
+        <div class="legend">
+          <span><i style="border-color:#2b7bc0;border-top-width:6px;width:6px;border-radius:50%"></i>${nOut} outreach</span>
+          <span><i style="border-color:#B3000C;border-top-width:6px;width:6px;border-radius:50%"></i>${nIss} issues</span>
+        </div>
+      </div>
+      ${groups.map(g => `<div class="tl-month">${esc(g.label)}</div>
+        <div class="tl-group">${g.items.map(item).join('')}</div>`).join('')}
+    </div>`;
+  }
+
+  // Long notes show three lines; click to expand.
+  function markClampedNotes() {
+    document.querySelectorAll('.tl-notes').forEach(n => {
+      if (n.scrollHeight > n.clientHeight + 2) n.classList.add('clamped');
+    });
+  }
+  document.addEventListener('click', e => {
+    const n = e.target.closest('.tl-notes.clamped');
+    if (n) n.classList.toggle('open');
+  });
 
   function drawChart(pts, avg26, avgAll) {
     const box = $('pfChart');
