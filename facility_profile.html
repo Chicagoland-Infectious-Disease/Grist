@@ -203,7 +203,6 @@ body {
     'Temporary Coverage': ['#B45309', '#fff'],
     'Lost':               ['#B3000C', '#fff'],
   };
-  const PRIORITY_COLORS = { High: '#B3000C', Medium: '#B45309', Low: '#1B6E2A' };
 
   grist.ready({ requiredAccess: 'full' });
 
@@ -450,17 +449,6 @@ body {
       .map(i => ({ start: Number(d.history.Week_Start[i]), label: d.history.Week_Label[i], n: Number(d.history.Encounters[i]) || 0 }))
       .sort((a, b) => a.start - b.start);
 
-    const tk = [];
-    if (d.issues && d.issues.Facility_Text) {
-      for (let i = 0; i < d.issues.id.length; i++) {
-        if (norm(d.issues.Facility_Text[i]) !== key) continue;
-        const st = d.issues.Status[i];
-        if (st !== 'Open' && st !== 'In Progress') continue;
-        tk.push({ id: d.issues.id[i], issue: d.issues.Issue[i], st, pr: d.issues.Priority[i], opened: d.issues.Date_Opened[i] });
-      }
-      tk.sort((a, b) => (Number(b.opened) || 0) - (Number(a.opened) || 0));
-    }
-
     const sc = STATUS_COLORS[status] || ['#ebe9e5', '#000'];
     const statusHtml = status ? `<span class="status" style="background:${sc[0]};color:${sc[1]}">${esc(status)}</span>` : '';
     const trendColor = trendCat === 'Trending Down' ? '#B3000C' : trendCat === 'Trending Up' ? '#126E0E' : '#1a1916';
@@ -499,16 +487,6 @@ body {
         </div>
         <div class="pf-chart" id="pfChart"></div>
         <div class="note">The current week is partial, and the most recent weeks usually lag about two weeks.</div>
-      </div>
-
-      <div class="card">
-        <div class="section-title">Open issue tickets (${tk.length})</div>
-        ${tk.length ? tk.slice(0, 4).map(x => `
-          <div class="ticket" style="border-left-color:${PRIORITY_COLORS[x.pr] || '#e0deda'}">
-            <div class="t1">#${x.id} · ${esc(String(x.issue || '').slice(0, 90))}${String(x.issue || '').length > 90 ? '…' : ''}</div>
-            <div class="t2">${esc(x.st)}${x.pr ? ' · ' + esc(x.pr) : ''} · opened ${mdY(dateOf(x.opened))}</div>
-          </div>`).join('') + (tk.length > 4 ? `<div class="note" style="margin-top:8px">+${tk.length - 4} more on the Facility Issues page</div>` : '')
-        : '<div class="muted">No open tickets.</div>'}
       </div>
 
       ${timelineHtml(key, d)}`;
