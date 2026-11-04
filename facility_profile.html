@@ -194,8 +194,13 @@ body {
   let currentMonth;          // Month row id currently shown in the score section
   let current = '';          // facility currently shown in the profile
 
+  let currentRowId = null;   // selected Facility_Outreach row
+  let lastRecKeys = [];      // for the diagnostic message
+
   grist.onRecord(rec => {
     if (!rec) return;
+    currentRowId = rec.id;
+    lastRecKeys = Object.keys(rec);
     const monthId = rec[MONTH_REF_COL];
     if (monthId !== currentMonth) {
       currentMonth = monthId;
@@ -235,13 +240,24 @@ body {
       ]);
       if (mine !== scRequest) return;   // a newer month was selected meanwhile
 
+      if (!t[MONTH_REF_COL]) {
+        showScoreEmpty(`Column "${MONTH_REF_COL}" not found in ${OUTREACH_TABLE}. Columns: ${Object.keys(t).join(', ')}`);
+        return;
+      }
+      // Take the month straight from the selected row in Facility_Outreach, so it doesn't
+      // depend on how the widget receives the record.
+      const rowIdx = t.id.indexOf(currentRowId);
+      const monthVal = rowIdx >= 0 ? t[MONTH_REF_COL][rowIdx] : monthId;
+      const monthKey = String(Array.isArray(monthVal) ? monthVal[1] : monthVal);
+
       const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, NoScore: 0 };
       let total = 0, fuNotRecorded = 0;
       const fuCounts = new Map();
       const fuCol = t[FOLLOW_UP_COL], dateCol = t[CONTACTED_COL];
 
       for (let i = 0; i < t.id.length; i++) {
-        if (t[MONTH_REF_COL][i] !== monthId) continue;
+        const v = t[MONTH_REF_COL][i];
+        if (String(Array.isArray(v) ? v[1] : v) !== monthKey) continue;
         total++;
         const s = scoreOf(t[SCORE_COL] && t[SCORE_COL][i]);
         if (s) counts[s]++;
@@ -254,8 +270,14 @@ body {
         }
       }
 
-      $('scMonth').textContent = monthLabel(m, monthId) || '—';
-      if (!total) { showScoreEmpty('No outreach rows for this month yet.'); return; }
+      $('scMonth').textContent = monthLabel(m, monthVal) ||
+        (typeof monthVal === 'string' ? monthVal : '—');
+      if (!total) {
+        showScoreEmpty(`No outreach rows matched. Selected row id: ${currentRowId} ` +
+          `(found in ${OUTREACH_TABLE}: ${rowIdx >= 0 ? 'yes' : 'no'}), Month value: ${monthKey}. ` +
+          `Widget record columns: ${lastRecKeys.join(', ')}`);
+        return;
+      }
       renderScores(counts, total);
       renderFollowUp(fuCol, fuCounts, fuNotRecorded, total);
     } catch (e) {
